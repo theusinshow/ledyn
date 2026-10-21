@@ -1,0 +1,65 @@
+{
+  "package": "leitura-dinamica-antigravity",
+  "version": "1.0",
+  "documentationDate": "2026-10-21",
+  "timezone": "America/Sao_Paulo",
+  "language": "pt-BR",
+  "status": "documentation-only; application acceptance tests not executed",
+  "files": [
+    {
+      "path": "ACCEPTANCE-TESTS.md",
+      "bytes": 20625,
+      "sha256": "1b25a0fe8df12a3dce81d425b340b13adf4a7ee7e2c0b5bf9847d44ed58b479a"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 7756,
+      "sha256": "f42aac958842412cbbf4e0c72b95db27c3c02d48ad58dcc75c59e5efd004eb45"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "bytes": 29186,
+      "sha256": "92387a2d17aea800b7a86436c12100625d6697fe8fe10fb73daebe65bdac3181"
+    },
+    {
+      "path": "DECISIONS.md",
+      "bytes": 5933,
+      "sha256": "4e833de69b79871ee24399f2393f2ca2c4663057fd5b49eb7ab3c8ec3631fd1e"
+    },
+    {
+      "path": "IMPLEMENTATION-PLAN.md",
+      "bytes": 16215,
+      "sha256": "2fac407618ea90b516ac8ac12ba3f1f27738e275c39f9b574fc10653aa09dd4e"
+    },
+    {
+      "path": "PRODUCT.md",
+      "bytes": 16483,
+      "sha256": "464ac62537d85381874b23b3f9a3f6de25b9ec137e2288fc201ec7688b3ca066"
+    },
+    {
+      "path": "PROMPT-INICIAL.md",
+      "bytes": 6310,
+      "sha256": "afad3a57b3248df9b30a1f0da7b2e4be7c29e5383742e181857bdd7f18fd0c0c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 6528,
+      "sha256": "e1f196a7d9fdf02be44fbdcc8f97ee9acadd3f9edbab68928ba4e095a0d0748a"
+    },
+    {
+      "path": "SOURCES.md",
+      "bytes": 5621,
+      "sha256": "7891c7e1c3522760610c4d637f93571e3b7e417a3b0eccbef6e37c970cd6d4cc"
+    },
+    {
+      "path": "UX-FLOWS.md",
+      "bytes": 17453,
+      "sha256": "758cb94d2562d9650e271de7257762c7148c64794558fbb9242606ab37b6c0fd"
+    },
+    {
+      "path": "VALIDATION.md",
+      "bytes": 3368,
+      "sha256": "dc4cbf16b025da96cb4f0cfea1393f95464fd714333c755279b481de22c05b93"
+    }
+  ]
+}
