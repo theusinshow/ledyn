@@ -15,8 +15,6 @@ import {
 } from '@/infrastructure/importers/types';
 import { AppError } from '@/shared/errors';
 
-let workerConfigured = false;
-
 function stripPdfExtension(fileName: string): string {
   return fileName.replace(/\.pdf$/i, '').replace(/\s+/g, ' ').trim();
 }
@@ -202,23 +200,9 @@ export async function extractPdfFile(
   }
 
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-  // Configura worker local empacotado pelo Vite quando em navegador com Worker real (sem CDN)
-  if (
-    !workerConfigured &&
-    typeof window !== 'undefined' &&
-    typeof Worker !== 'undefined' &&
-    !('__vitest_environment__' in globalThis)
-  ) {
-    try {
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/legacy/build/pdf.worker.mjs',
-        import.meta.url,
-      ).toString();
-      workerConfigured = true;
-    } catch {
-      // Fallback para fake worker in-process se URL não resolver no ambiente de teste
-    }
+  const g = globalThis as Record<string, unknown>;
+  if (!g.pdfjsWorker) {
+    g.pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   }
 
   const dataCopy = new Uint8Array(fileBytes.byteLength);

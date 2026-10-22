@@ -47,6 +47,7 @@ import { toAppError } from '@/shared/errors';
 import { formatDateTimePtBr } from '@/shared/utils';
 
 const HAS_WORD_CHAR_RE = /[\p{L}\p{N}]/u;
+export const LIBRARY_WINDOW_STEP = 50;
 
 type ImportTabMode = 'paste' | 'file';
 
@@ -105,6 +106,7 @@ export function LibraryPage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(LIBRARY_WINDOW_STEP);
 
   const refreshLibrary = useCallback(async (query?: string) => {
     try {
@@ -944,7 +946,10 @@ export function LibraryPage() {
             placeholder="Buscar documento por título..."
             className="pl-9"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setVisibleCount(LIBRARY_WINDOW_STEP);
+            }}
           />
         </div>
       )}
@@ -1015,159 +1020,200 @@ export function LibraryPage() {
                     <FileUp className="h-4 w-4" aria-hidden="true" />
                     Importar arquivo
                   </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void navigate('/training')}
+                    data-testid="empty-state-training-btn"
+                  >
+                    Experimentar um exercício
+                  </Button>
                 </div>
               </>
             )}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4" data-testid="library-items-list">
-          {items.map(({ document: doc, progress, progressPercent }) => {
-            const currentTokenIdx = progress?.cursor.tokenIndex ?? 0;
-            const isCompleted = Boolean(progress?.completed);
-            const hasStarted = currentTokenIdx > 0 && !isCompleted;
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span data-testid="library-total-count">
+              Exibindo {Math.min(visibleCount, items.length)} de {items.length}{' '}
+              {items.length === 1 ? 'documento' : 'documentos'}
+            </span>
+          </div>
 
-            return (
-              <Card
-                key={doc.id}
-                data-testid={`library-item-${doc.id}`}
-                className="transition-colors hover:border-primary/40"
-              >
-                <CardContent className="p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-2 flex-1 min-w-0">
-                      {renamingId === doc.id ? (
-                        <div className="flex items-center gap-2 max-w-md">
-                          <label
-                            htmlFor={`rename-input-${doc.id}`}
-                            className="sr-only"
-                          >
-                            Novo título
-                          </label>
-                          <Input
-                            id={`rename-input-${doc.id}`}
-                            data-testid={`rename-input-${doc.id}`}
-                            value={renameValue}
-                            maxLength={80}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                          />
+          <div className="grid gap-4" data-testid="library-items-list">
+            {items
+              .slice(0, visibleCount)
+              .map(({ document: doc, progress, progressPercent }) => {
+                const currentTokenIdx = progress?.cursor.tokenIndex ?? 0;
+                const isCompleted = Boolean(progress?.completed);
+                const hasStarted = currentTokenIdx > 0 && !isCompleted;
+
+                return (
+                  <Card
+                    key={doc.id}
+                    data-testid={`library-item-${doc.id}`}
+                    className="transition-colors hover:border-primary/40"
+                  >
+                    <CardContent className="p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-2 flex-1 min-w-0">
+                          {renamingId === doc.id ? (
+                            <div className="flex items-center gap-2 max-w-md">
+                              <label
+                                htmlFor={`rename-input-${doc.id}`}
+                                className="sr-only"
+                              >
+                                Novo título
+                              </label>
+                              <Input
+                                id={`rename-input-${doc.id}`}
+                                data-testid={`rename-input-${doc.id}`}
+                                value={renameValue}
+                                maxLength={80}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                              />
+                              <Button
+                                size="icon"
+                                variant="default"
+                                aria-label="Confirmar novo título"
+                                onClick={() => void handleSaveRename(doc.id)}
+                                data-testid={`confirm-rename-${doc.id}`}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Cancelar renomeação"
+                                onClick={() => setRenamingId(null)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h2
+                                className="font-semibold text-base break-words"
+                                data-testid={`library-item-title-${doc.id}`}
+                              >
+                                {doc.title}
+                              </h2>
+                              <Badge variant="secondary">
+                                {formatLabelForBadge(doc.format)}
+                              </Badge>
+                              {isCompleted && (
+                                <Badge variant="default">Concluído</Badge>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>
+                              {doc.tokenCount.toLocaleString('pt-BR')} palavras
+                            </span>
+                            <span
+                              data-testid={`library-item-progress-${doc.id}`}
+                            >
+                              Progresso: {progressPercent}% (
+                              {currentTokenIdx.toLocaleString('pt-BR')} /{' '}
+                              {doc.tokenCount.toLocaleString('pt-BR')})
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-3 w-3" aria-hidden="true" />
+                              Último acesso:{' '}
+                              {formatDateTimePtBr(doc.lastOpenedAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
                           <Button
-                            size="icon"
-                            variant="default"
-                            aria-label="Confirmar novo título"
-                            onClick={() => void handleSaveRename(doc.id)}
-                            data-testid={`confirm-rename-${doc.id}`}
+                            onClick={() => void navigate(`/reader/${doc.id}`)}
+                            data-testid={`open-reader-btn-${doc.id}`}
                           >
-                            <Check className="h-4 w-4" />
+                            <BookOpen className="h-4 w-4" aria-hidden="true" />
+                            {hasStarted
+                              ? 'Continuar'
+                              : isCompleted
+                                ? 'Ler novamente'
+                                : 'Ler em RSVP'}
                           </Button>
                           <Button
+                            variant="outline"
                             size="icon"
-                            variant="ghost"
-                            aria-label="Cancelar renomeação"
-                            onClick={() => setRenamingId(null)}
+                            aria-label={`Renomear ${doc.title}`}
+                            onClick={() => handleStartRename(doc.id, doc.title)}
+                            data-testid={`start-rename-btn-${doc.id}`}
                           >
-                            <X className="h-4 w-4" />
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label={`Remover ${doc.title}`}
+                            onClick={() => setDeletingId(doc.id)}
+                            data-testid={`start-delete-btn-${doc.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h2
-                            className="font-semibold text-base break-words"
-                            data-testid={`library-item-title-${doc.id}`}
-                          >
-                            {doc.title}
-                          </h2>
-                          <Badge variant="secondary">
-                            {formatLabelForBadge(doc.format)}
-                          </Badge>
-                          {isCompleted && (
-                            <Badge variant="default">Concluído</Badge>
-                          )}
+                      </div>
+
+                      {/* Confirmação de remoção transacional */}
+                      {deletingId === doc.id && (
+                        <div
+                          role="alertdialog"
+                          aria-label="Confirmar remoção de documento"
+                          className="mt-4 flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <p className="text-muted-foreground">
+                            Remover{' '}
+                            <strong className="text-foreground">
+                              {doc.title}
+                            </strong>
+                            ? O texto original, snapshot e todo o histórico associado a este documento também serão apagados.
+                          </p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeletingId(null)}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void handleConfirmDelete(doc.id)}
+                              data-testid={`confirm-delete-btn-${doc.id}`}
+                            >
+                              Confirmar remoção
+                            </Button>
+                          </div>
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>
-                          {doc.tokenCount.toLocaleString('pt-BR')} palavras
-                        </span>
-                        <span data-testid={`library-item-progress-${doc.id}`}>
-                          Progresso: {progressPercent}% (
-                          {currentTokenIdx.toLocaleString('pt-BR')} /{' '}
-                          {doc.tokenCount.toLocaleString('pt-BR')})
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" aria-hidden="true" />
-                          Último acesso: {formatDateTimePtBr(doc.lastOpenedAt)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <Button
-                        onClick={() => void navigate(`/reader/${doc.id}`)}
-                        data-testid={`open-reader-btn-${doc.id}`}
-                      >
-                        <BookOpen className="h-4 w-4" aria-hidden="true" />
-                        {hasStarted
-                          ? 'Continuar'
-                          : isCompleted
-                            ? 'Ler novamente'
-                            : 'Ler em RSVP'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label={`Renomear ${doc.title}`}
-                        onClick={() => handleStartRename(doc.id, doc.title)}
-                        data-testid={`start-rename-btn-${doc.id}`}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label={`Remover ${doc.title}`}
-                        onClick={() => setDeletingId(doc.id)}
-                        data-testid={`start-delete-btn-${doc.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Confirmação de remoção transacional */}
-                  {deletingId === doc.id && (
-                    <div
-                      role="alertdialog"
-                      aria-label="Confirmar remoção de documento"
-                      className="mt-4 flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <p className="text-muted-foreground">
-                        Remover <strong className="text-foreground">{doc.title}</strong>? O texto original, snapshot e todo o histórico associado a este documento também serão apagados.
-                      </p>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDeletingId(null)}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => void handleConfirmDelete(doc.id)}
-                          data-testid={`confirm-delete-btn-${doc.id}`}
-                        >
-                          Confirmar remoção
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {items.length > visibleCount && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setVisibleCount((prev) => prev + LIBRARY_WINDOW_STEP)
+                }
+                data-testid="library-load-more-btn"
+              >
+                Mostrar mais documentos ({items.length - visibleCount}{' '}
+                restantes)
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

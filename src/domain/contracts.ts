@@ -112,6 +112,7 @@ export type SessionRecord = {
   documentId: string;
   contentVersionId: string;
   status: SessionStatus;
+  currentMode?: ReadingMode;
   modeSegments: ModeSegment[];
   startedAt: string;
   endedAt: string | null;

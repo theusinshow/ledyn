@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#09090b" />
+  <rect x="72" y="104" width="368" height="304" rx="40" fill="#18181b" stroke="#fafafa" stroke-width="14" />
+  <line x1="256" y1="124" x2="256" y2="176" stroke="#3b82f6" stroke-width="14" stroke-linecap="round" />
+  <line x1="256" y1="336" x2="256" y2="388" stroke="#3b82f6" stroke-width="14" stroke-linecap="round" />
+  <text x="256" y="282" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="96" fill="#fafafa">LER</text>
+</svg>

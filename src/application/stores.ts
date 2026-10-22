@@ -5,7 +5,7 @@ import type {
 } from '@/infrastructure/db/repositories';
 import {
   DEFAULT_USER_PREFERENCES,
-  loadUserPreferences,
+  loadUserPreferencesWithDiagnostics,
   saveUserPreferences,
 } from '@/infrastructure/db/repositories';
 
@@ -15,6 +15,8 @@ interface AppTransientStore {
   /** Preferências carregadas do Dexie (sem duplicar em localStorage). */
   preferences: UserPreferences;
   preferencesLoaded: boolean;
+  /** Aviso quando algum valor salvo no IndexedDB precisou de fallback validado (AC-30). */
+  preferencesWarning: string | null;
   /** Rascunho transitório de importação de texto colado. */
   rawInputText: string;
   rawInputTitle: string;
@@ -24,6 +26,7 @@ interface AppTransientStore {
 
   hydratePreferences: () => Promise<void>;
   updatePreferences: (partial: Partial<UserPreferences>) => Promise<void>;
+  dismissPreferencesWarning: () => void;
   setRawInputText: (text: string) => void;
   setRawInputTitle: (title: string) => void;
   setPreparedDraft: (draft: PreparedDocumentDraft | null) => void;
@@ -43,6 +46,7 @@ export const useAppStore = create<AppTransientStore>((set) => ({
   tabOwnerId: generateTabOwnerId(),
   preferences: { ...DEFAULT_USER_PREFERENCES },
   preferencesLoaded: false,
+  preferencesWarning: null,
   rawInputText: '',
   rawInputTitle: '',
   preparedDraft: null,
@@ -50,14 +54,24 @@ export const useAppStore = create<AppTransientStore>((set) => ({
   draftError: null,
 
   hydratePreferences: async () => {
-    const prefs = await loadUserPreferences();
-    set({ preferences: prefs, preferencesLoaded: true });
+    const result = await loadUserPreferencesWithDiagnostics();
+    set({
+      preferences: result.preferences,
+      preferencesLoaded: true,
+      preferencesWarning: result.warningMessage,
+    });
   },
 
   updatePreferences: async (partial) => {
     const updated = await saveUserPreferences(partial);
-    set({ preferences: updated, preferencesLoaded: true });
+    set({
+      preferences: updated,
+      preferencesLoaded: true,
+      preferencesWarning: null,
+    });
   },
+
+  dismissPreferencesWarning: () => set({ preferencesWarning: null }),
 
   setRawInputText: (text) => set({ rawInputText: text, draftError: null }),
   setRawInputTitle: (title) => set({ rawInputTitle: title }),

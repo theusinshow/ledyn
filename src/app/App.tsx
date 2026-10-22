@@ -12,6 +12,7 @@ import {
   BookOpen,
   GraduationCap,
   History,
+  RefreshCw,
   Settings,
 } from 'lucide-react';
 import { useAppStore } from '@/application/stores';
@@ -20,8 +21,13 @@ import { HistoryPage } from '@/features/history/HistoryPage';
 import { LibraryPage } from '@/features/library/LibraryPage';
 import { ReaderPage } from '@/features/reader/ReaderPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import { QuizPage } from '@/features/training/QuizPage';
 import { TrainingPage } from '@/features/training/TrainingPage';
 import { ensureDatabaseCompatible } from '@/infrastructure/db/database';
+import {
+  applyPendingServiceWorkerUpdate,
+  subscribeSwStatus,
+} from '@/infrastructure/pwa/serviceWorkerManager';
 import { toAppError } from '@/shared/errors';
 import { cn } from '@/shared/utils';
 
@@ -81,6 +87,13 @@ class AppErrorBoundary extends React.Component<
 function NavigationShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isReaderRoute = location.pathname.startsWith('/reader/');
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    return subscribeSwStatus((state) => {
+      setSwUpdateAvailable(state.updateAvailable);
+    });
+  }, []);
 
   const navItems = [
     { to: '/library', label: 'Biblioteca', icon: BookOpen },
@@ -91,6 +104,29 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {swUpdateAvailable && (
+        <div
+          role="status"
+          data-testid="pwa-update-banner"
+          className="border-b border-primary/40 bg-primary/10 px-4 py-2.5 text-xs"
+        >
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2">
+            <span>
+              <strong>Nova versão offline pronta:</strong> nenhuma recarga automática será feita durante a leitura. Quando desejar atualizar, sua posição atual será salva primeiro.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void applyPendingServiceWorkerUpdate()}
+              data-testid="pwa-apply-update-btn"
+              className="h-7 text-xs"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Pausar, salvar e atualizar
+            </Button>
+          </div>
+        </div>
+      )}
       {!isReaderRoute && (
         <header className="border-b border-border bg-card/60 backdrop-blur-xs sticky top-0 z-10">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
@@ -202,6 +238,25 @@ export function AppContent() {
     return undefined;
   }, [preferences.theme]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const applyReducedMotion = () => {
+      const prefersReduced =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const isReduced = preferences.reducedMotion || prefersReduced;
+      root.dataset.reducedMotion = isReduced ? 'true' : 'false';
+    };
+
+    applyReducedMotion();
+    if (typeof window.matchMedia === 'function') {
+      const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+      mql.addEventListener('change', applyReducedMotion);
+      return () => mql.removeEventListener('change', applyReducedMotion);
+    }
+    return undefined;
+  }, [preferences.reducedMotion]);
+
   if (dbCompatError) {
     return (
       <div
@@ -229,6 +284,7 @@ export function AppContent() {
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/reader/:documentId" element={<ReaderPage />} />
         <Route path="/training" element={<TrainingPage />} />
+        <Route path="/quiz/:attemptId" element={<QuizPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/library" replace />} />

@@ -20,7 +20,9 @@ export type ErrorCode =
   | 'RESTORE_REQUIRES_EMPTY_LIBRARY'
   | 'DOCUMENT_NOT_FOUND'
   | 'EMPTY_TEXT'
-  | 'INVALID_SPEED';
+  | 'INVALID_SPEED'
+  | 'QUIZ_INCOMPLETE'
+  | 'QUIZ_ALREADY_SUBMITTED';
 
 const DEFAULT_USER_MESSAGES: Record<ErrorCode, string> = {
   UNSUPPORTED_FORMAT: 'Formato de arquivo não suportado nesta versão.',
@@ -45,6 +47,8 @@ const DEFAULT_USER_MESSAGES: Record<ErrorCode, string> = {
   DOCUMENT_NOT_FOUND: 'Documento não encontrado na biblioteca local.',
   EMPTY_TEXT: 'Insira um texto com pelo menos uma palavra legível antes de preparar.',
   INVALID_SPEED: 'A velocidade deve estar entre 100 e 800 PPM.',
+  QUIZ_INCOMPLETE: 'Responda todas as questões antes de enviar o questionário.',
+  QUIZ_ALREADY_SUBMITTED: 'Este questionário já foi enviado e finalizado.',
 };
 
 export class AppError extends Error {

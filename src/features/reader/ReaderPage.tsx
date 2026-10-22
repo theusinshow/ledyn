@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
+  AlignLeft,
   ArrowLeft,
   CheckCircle2,
   FastForward,
@@ -11,6 +12,7 @@ import {
   Plus,
   Rewind,
   RotateCcw,
+  Zap,
 } from 'lucide-react';
 import { useAppStore } from '@/application/stores';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +26,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import type { ReadingMode } from '@/domain/contracts';
 import { BrowserClock } from '@/domain/reading/clock';
 import {
   DEFAULT_WPM,
@@ -38,12 +42,16 @@ import {
   countUniqueCoveredTokens,
   formatObservedWpm,
 } from '@/domain/reading/metrics';
+import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
 import { ReadingLeaseManager } from '@/infrastructure/db/leaseManager';
 import {
   loadReaderDocumentBundle,
   saveReadingCheckpoint,
+  saveSessionReflection,
+  startOrResumeQuizAttempt,
   type ReaderDocumentBundle,
 } from '@/infrastructure/db/repositories';
+import { registerBeforeSwUpdateHandler } from '@/infrastructure/pwa/serviceWorkerManager';
 import { toAppError } from '@/shared/errors';
 import { createId, formatDurationPtBr } from '@/shared/utils';
 
@@ -81,7 +89,7 @@ function splitWordFocalParts(word: string): {
 export function ReaderPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
-  const { tabOwnerId, preferences } = useAppStore();
+  const { tabOwnerId, preferences, updatePreferences } = useAppStore();
 
   const [bundle, setBundle] = useState<ReaderDocumentBundle | null>(null);
   const [snapshot, setSnapshot] = useState<EngineSnapshot | null>(null);
@@ -92,7 +100,15 @@ export function ReaderPage() {
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
   const [tabConflictError, setTabConflictError] = useState<string | null>(null);
   const [visibilityPausedNotice, setVisibilityPausedNotice] = useState(false);
+  const [manualScrollPausedNotice, setManualScrollPausedNotice] =
+    useState(false);
   const [resumeBannerText, setResumeBannerText] = useState<string | null>(null);
+  const [systemReducedMotion, setSystemReducedMotion] = useState<boolean>(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
 
   const [wpmInputText, setWpmInputText] = useState<string>(
     String(DEFAULT_WPM),
@@ -101,6 +117,11 @@ export function ReaderPage() {
     null,
   );
   const [speedFeedback, setSpeedFeedback] = useState<string | null>(null);
+  const [showReflectionForm, setShowReflectionForm] = useState(false);
+  const [reflectionText, setReflectionText] = useState('');
+  const [reflectionSaved, setReflectionSaved] = useState(false);
+  const [reflectionError, setReflectionError] = useState<string | null>(null);
+  const [isStartingQuiz, setIsStartingQuiz] = useState(false);
 
   const engineRef = useRef<ReadingEngine | null>(null);
   const leaseManagerRef = useRef<ReadingLeaseManager | null>(null);
@@ -108,6 +129,21 @@ export function ReaderPage() {
   const sessionIdRef = useRef<string>('');
   const sessionStartedAtRef = useRef<string>('');
   const recoveredFlagRef = useRef<boolean>(false);
+  const checkpointQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSavesCountRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setSystemReducedMotion(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  const effectiveReducedMotion =
+    preferences.reducedMotion || systemReducedMotion;
 
   const persistCheckpoint = useCallback(
     async (
@@ -121,34 +157,55 @@ export function ReaderPage() {
       }
 
       setSaveState('saving');
-      try {
-        await saveReadingCheckpoint({
-          sessionId: sessionIdRef.current,
-          documentId: resolvedBundle.document.id,
-          contentVersionId: resolvedBundle.content.id,
-          ownerId: tabOwnerId,
-          startedAt: sessionStartedAtRef.current,
-          snapshot: currentSnap,
-          sessionStatusOverride: statusOverride,
-          recoveredFromInterruption: recoveredFlagRef.current,
-        });
-        setSaveState('saved');
-        setSaveErrorMessage(null);
-        return true;
-      } catch (err) {
-        const appErr = toAppError(err);
-        setSaveState('error');
-        if (appErr.code === 'SESSION_LOCKED') {
-          setTabConflictError(appErr.userMessage);
-          engineRef.current?.pause('lease_lost');
-        } else {
-          setSaveErrorMessage(
-            `Seu último avanço ainda não foi salvo. (${appErr.userMessage})`,
+      pendingSavesCountRef.current += 1;
+
+      const runSave = async (): Promise<boolean> => {
+        try {
+          await saveReadingCheckpoint({
+            sessionId: sessionIdRef.current,
+            documentId: resolvedBundle.document.id,
+            contentVersionId: resolvedBundle.content.id,
+            ownerId: tabOwnerId,
+            startedAt: sessionStartedAtRef.current,
+            snapshot: currentSnap,
+            sessionStatusOverride: statusOverride,
+            recoveredFromInterruption: recoveredFlagRef.current,
+          });
+          pendingSavesCountRef.current = Math.max(
+            0,
+            pendingSavesCountRef.current - 1,
           );
-          engineRef.current?.pause('storage_error');
+          if (pendingSavesCountRef.current === 0) {
+            setSaveState('saved');
+          }
+          setSaveErrorMessage(null);
+          return true;
+        } catch (err) {
+          pendingSavesCountRef.current = Math.max(
+            0,
+            pendingSavesCountRef.current - 1,
+          );
+          const appErr = toAppError(err);
+          setSaveState('error');
+          if (appErr.code === 'SESSION_LOCKED') {
+            setTabConflictError(appErr.userMessage);
+            engineRef.current?.pause('lease_lost');
+          } else {
+            setSaveErrorMessage(
+              `Seu último avanço ainda não foi salvo. (${appErr.userMessage})`,
+            );
+            engineRef.current?.pause('storage_error');
+          }
+          return false;
         }
-        return false;
-      }
+      };
+
+      const nextTask = checkpointQueueRef.current.then(runSave, runSave);
+      checkpointQueueRef.current = nextTask.then(
+        () => undefined,
+        () => undefined,
+      );
+      return nextTask;
     },
     [tabOwnerId],
   );
@@ -177,14 +234,19 @@ export function ReaderPage() {
         if (cancelled) return;
         bundleRef.current = loaded;
 
+        const currentPrefs = useAppStore.getState().preferences;
         const resumable = loaded.resumableSession;
         const initialCursorIdx = loaded.progress.cursor.tokenIndex;
         const initialWpm =
           resumable?.settingsChanges[resumable.settingsChanges.length - 1]
-            ?.wpm ?? preferences.defaultWpm;
+            ?.wpm ?? currentPrefs.defaultWpm;
         const initialPunct =
           resumable?.settingsChanges[resumable.settingsChanges.length - 1]
-            ?.punctuationPauseEnabled ?? preferences.punctuationPauseEnabled;
+            ?.punctuationPauseEnabled ?? currentPrefs.punctuationPauseEnabled;
+        const initialMode: ReadingMode =
+          resumable?.currentMode ??
+          resumable?.modeSegments[resumable.modeSegments.length - 1]?.mode ??
+          'rsvp';
 
         if (resumable && initialCursorIdx < loaded.content.tokenCount) {
           sessionIdRef.current = resumable.id;
@@ -221,6 +283,7 @@ export function ReaderPage() {
           initialCursorIndex: initialCursorIdx,
           initialWpm,
           initialPunctuationPauseEnabled: initialPunct,
+          initialMode,
           initialActiveMs: resumable ? resumable.activeMs : 0,
           initialPresentedCount: resumable ? resumable.presentedCount : 0,
           initialCoverageRanges: resumable ? resumable.coverageRanges : [],
@@ -267,13 +330,7 @@ export function ReaderPage() {
       leaseManager.destroy();
       leaseManagerRef.current = null;
     };
-  }, [
-    documentId,
-    tabOwnerId,
-    preferences.defaultWpm,
-    preferences.punctuationPauseEnabled,
-    persistCheckpoint,
-  ]);
+  }, [documentId, tabOwnerId, persistCheckpoint]);
 
   const isPlayingState = snapshot?.status === 'playing';
 
@@ -330,6 +387,23 @@ export function ReaderPage() {
     };
   }, [persistCheckpoint]);
 
+  // Pausar e salvar checkpoint antes de recarregar para atualização do Service Worker (AC-33)
+  useEffect(() => {
+    return registerBeforeSwUpdateHandler(async () => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      if (engine.getSnapshot().status === 'playing') {
+        engine.pause('manual');
+      }
+      const snap = engine.getSnapshot();
+      await persistCheckpoint(
+        snap,
+        snap.status === 'completed' ? 'completed' : 'paused',
+      );
+      await leaseManagerRef.current?.releaseLeaseIfOwned();
+    });
+  }, [persistCheckpoint]);
+
   const handleTogglePlayPause = useCallback(async () => {
     const engine = engineRef.current;
     const leaseManager = leaseManagerRef.current;
@@ -350,6 +424,7 @@ export function ReaderPage() {
 
     setTabConflictError(null);
     setVisibilityPausedNotice(false);
+    setManualScrollPausedNotice(false);
     setResumeBannerText(null);
 
     try {
@@ -389,6 +464,7 @@ export function ReaderPage() {
     async (targetIndex: number) => {
       const engine = engineRef.current;
       if (!engine) return;
+      setManualScrollPausedNotice(false);
       engine.seek(targetIndex);
       const nextSnap = engine.getSnapshot();
       await persistCheckpoint(
@@ -398,6 +474,41 @@ export function ReaderPage() {
       await leaseManagerRef.current?.releaseLeaseIfOwned();
     },
     [persistCheckpoint],
+  );
+
+  const handleChangeMode = useCallback(
+    async (newMode: ReadingMode) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      setManualScrollPausedNotice(false);
+      engine.setMode(newMode);
+      const nextSnap = engine.getSnapshot();
+      await persistCheckpoint(
+        nextSnap,
+        nextSnap.status === 'completed' ? 'completed' : 'paused',
+      );
+      await leaseManagerRef.current?.releaseLeaseIfOwned();
+    },
+    [persistCheckpoint],
+  );
+
+  const handleManualScrollPause = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.getSnapshot().status === 'playing') {
+      engine.pause('manual');
+      setManualScrollPausedNotice(true);
+      const pausedSnap = engine.getSnapshot();
+      await persistCheckpoint(pausedSnap, 'paused');
+      await leaseManagerRef.current?.releaseLeaseIfOwned();
+    }
+  }, [persistCheckpoint]);
+
+  const handleGuidedFontSizeChange = useCallback(
+    async (newSizePx: number) => {
+      await updatePreferences({ guidedFontSizePx: newSizePx });
+    },
+    [updatePreferences],
   );
 
   const handleAdjustWpmStep = useCallback((deltaSteps: number) => {
@@ -459,6 +570,7 @@ export function ReaderPage() {
     const currentWpm = snapshot?.wpm ?? preferences.defaultWpm;
     const currentPunct =
       snapshot?.punctuationPauseEnabled ?? preferences.punctuationPauseEnabled;
+    const currentMode: ReadingMode = snapshot?.mode ?? 'rsvp';
 
     const engine = new ReadingEngine({
       clock: new BrowserClock(),
@@ -467,6 +579,7 @@ export function ReaderPage() {
       initialCursorIndex: 0,
       initialWpm: currentWpm,
       initialPunctuationPauseEnabled: currentPunct,
+      initialMode: currentMode,
       onStateChange: (nextSnap) => {
         setSnapshot(nextSnap);
       },
@@ -485,7 +598,40 @@ export function ReaderPage() {
     engineRef.current = engine;
     const freshSnap = engine.getSnapshot();
     setSnapshot(freshSnap);
+    setShowReflectionForm(false);
+    setReflectionText('');
+    setReflectionSaved(false);
+    setReflectionError(null);
     await persistCheckpoint(freshSnap, 'paused');
+  };
+
+  const handleOpenQuizAttempt = async () => {
+    if (!bundle || !sessionIdRef.current || isStartingQuiz) return;
+    setIsStartingQuiz(true);
+    try {
+      const attempt = await startOrResumeQuizAttempt(
+        sessionIdRef.current,
+        bundle.document.id,
+      );
+      await navigate(`/quiz/${attempt.id}`);
+    } catch (err) {
+      const appErr = toAppError(err);
+      setSaveErrorMessage(appErr.userMessage);
+    } finally {
+      setIsStartingQuiz(false);
+    }
+  };
+
+  const handleSaveReflection = async () => {
+    if (!sessionIdRef.current) return;
+    setReflectionError(null);
+    try {
+      await saveSessionReflection(sessionIdRef.current, reflectionText);
+      setReflectionSaved(true);
+    } catch (err) {
+      const appErr = toAppError(err);
+      setReflectionError(appErr.userMessage);
+    }
   };
 
   // Atalhos de teclado no leitor (UX-FLOWS.md seção 5)
@@ -593,12 +739,26 @@ export function ReaderPage() {
 
   const isPlaying = snapshot.status === 'playing';
   const isCompleted = snapshot.status === 'completed';
+  const isGuidedMode = snapshot.mode === 'guided';
   const progressPercent = calculateProgressPercent(
     snapshot.cursor.tokenIndex,
     snapshot.tokenCount,
   );
   const uniqueCovered = countUniqueCoveredTokens(snapshot.coverageRanges);
   const isPartialCoverage = uniqueCovered < snapshot.tokenCount;
+
+  const modesUsedSet = new Set<ReadingMode>(
+    snapshot.modeSegments.map((s) => s.mode),
+  );
+  if (modesUsedSet.size === 0) {
+    modesUsedSet.add(snapshot.mode);
+  }
+  const modesSummaryLabel =
+    modesUsedSet.has('rsvp') && modesUsedSet.has('guided')
+      ? 'RSVP + Leitura Guiada'
+      : modesUsedSet.has('guided')
+        ? 'Leitura Guiada'
+        : 'RSVP';
 
   const currentWord = snapshot.currentToken?.text ?? '';
   const focalParts = splitWordFocalParts(currentWord);
@@ -645,23 +805,63 @@ export function ReaderPage() {
           </h1>
         </div>
 
-        {/* Indicador Honesto de Persistência */}
-        <div className="flex items-center gap-2 text-xs">
-          {saveState === 'saving' && (
-            <Badge variant="outline" data-testid="checkpoint-status-saving">
-              Salvando progresso...
-            </Badge>
+        {/* Alternador de Modo (RSVP / Guiada) + Indicador Honesto de Persistência */}
+        <div className="flex flex-wrap items-center gap-3">
+          {!isCompleted && (
+            <div
+              role="group"
+              aria-label="Modo de leitura"
+              data-testid="reader-mode-switcher"
+              className="inline-flex rounded-lg border border-border bg-muted/40 p-1"
+            >
+              <button
+                type="button"
+                aria-pressed={!isGuidedMode}
+                data-testid="mode-switch-rsvp"
+                onClick={() => void handleChangeMode('rsvp')}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                  !isGuidedMode
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                RSVP
+              </button>
+              <button
+                type="button"
+                aria-pressed={isGuidedMode}
+                data-testid="mode-switch-guided"
+                onClick={() => void handleChangeMode('guided')}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                  isGuidedMode
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <AlignLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                Guiada
+              </button>
+            </div>
           )}
-          {saveState === 'saved' && !saveErrorMessage && (
-            <Badge variant="secondary" data-testid="checkpoint-status-saved">
-              Ponto salvo
-            </Badge>
-          )}
-          {saveState === 'error' && (
-            <Badge variant="destructive" data-testid="checkpoint-status-error">
-              Avanço não salvo
-            </Badge>
-          )}
+
+          <div className="flex items-center gap-2 text-xs">
+            {saveState === 'saving' && (
+              <Badge variant="outline" data-testid="checkpoint-status-saving">
+                Salvando progresso...
+              </Badge>
+            )}
+            {saveState === 'saved' && !saveErrorMessage && (
+              <Badge variant="secondary" data-testid="checkpoint-status-saved">
+                Ponto salvo
+              </Badge>
+            )}
+            {saveState === 'error' && (
+              <Badge variant="destructive" data-testid="checkpoint-status-error">
+                Avanço não salvo
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -750,47 +950,83 @@ export function ReaderPage() {
         </div>
       )}
 
-      {/* Visor Principal RSVP ou Resumo de Conclusão */}
+      {manualScrollPausedNotice && !isPlaying && (
+        <div
+          role="status"
+          data-testid="manual-scroll-paused-banner"
+          className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+        >
+          <span>
+            Leitura pausada por rolagem manual. Use &ldquo;Voltar ao ponto de leitura&rdquo; ou clique em uma palavra para continuar.
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setManualScrollPausedNotice(false)}
+          >
+            Fechar
+          </Button>
+        </div>
+      )}
+
+      {/* Visor Principal (RSVP ou Leitura Guiada) ou Resumo de Conclusão */}
       {!isCompleted ? (
         <Card className="overflow-hidden">
           <CardContent className="p-6 sm:p-10">
-            <div className="flex flex-col items-center justify-center min-h-[200px] sm:min-h-[240px] rounded-xl border border-border bg-muted/20 px-4 py-6 relative select-none">
-              <div
-                className="h-3 w-0.5 bg-primary/40 mb-3"
-                aria-hidden="true"
-              />
+            {!isGuidedMode ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px] sm:min-h-[240px] rounded-xl border border-border bg-muted/20 px-4 py-6 relative select-none">
+                <div
+                  className="h-3 w-0.5 bg-primary/40 mb-3"
+                  aria-hidden="true"
+                />
 
-              <div
-                data-testid="rsvp-word-display"
-                className={`w-full text-center font-mono font-semibold tracking-wide break-words leading-tight ${
-                  isLongWord
-                    ? 'text-2xl sm:text-3xl'
-                    : 'text-3xl sm:text-5xl'
-                }`}
-              >
-                <span>{focalParts.prefix}</span>
-                <span className="text-primary underline decoration-primary/60 underline-offset-4">
-                  {focalParts.pivot}
-                </span>
-                <span>{focalParts.suffix}</span>
-              </div>
-
-              <div
-                className="h-3 w-0.5 bg-primary/40 mt-3"
-                aria-hidden="true"
-              />
-
-              {!isPlaying && (
-                <p
-                  className="mt-4 text-xs text-muted-foreground text-center max-w-md line-clamp-2"
-                  data-testid="rsvp-paused-context"
+                <div
+                  data-testid="rsvp-word-display"
+                  className={`w-full text-center font-mono font-semibold tracking-wide break-words leading-tight ${
+                    isLongWord
+                      ? 'text-2xl sm:text-3xl'
+                      : 'text-3xl sm:text-5xl'
+                  }`}
                 >
-                  {prevContextTokens && <span>...{prevContextTokens} </span>}
-                  <strong className="text-foreground">{currentWord}</strong>
-                  {nextContextTokens && <span> {nextContextTokens}...</span>}
-                </p>
-              )}
-            </div>
+                  <span>{focalParts.prefix}</span>
+                  <span className="text-primary underline decoration-primary/60 underline-offset-4">
+                    {focalParts.pivot}
+                  </span>
+                  <span>{focalParts.suffix}</span>
+                </div>
+
+                <div
+                  className="h-3 w-0.5 bg-primary/40 mt-3"
+                  aria-hidden="true"
+                />
+
+                {!isPlaying && (
+                  <p
+                    className="mt-4 text-xs text-muted-foreground text-center max-w-md line-clamp-2"
+                    data-testid="rsvp-paused-context"
+                  >
+                    {prevContextTokens && <span>...{prevContextTokens} </span>}
+                    <strong className="text-foreground">{currentWord}</strong>
+                    {nextContextTokens && <span> {nextContextTokens}...</span>}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <GuidedReadingView
+                normalizedText={bundle.content.normalizedText}
+                blocks={bundle.content.blocks}
+                tokens={bundle.tokens}
+                activeTokenIndex={snapshot.cursor.tokenIndex}
+                isPlaying={isPlaying}
+                fontSizePx={preferences.guidedFontSizePx}
+                reducedMotion={effectiveReducedMotion}
+                onSelectToken={(tokenIdx) => void handleSeekTo(tokenIdx)}
+                onManualScrollPause={() => void handleManualScrollPause()}
+                onChangeFontSize={(sizePx) =>
+                  void handleGuidedFontSizeChange(sizePx)
+                }
+              />
+            )}
 
             <div className="mt-6 flex flex-col items-center gap-4">
               <div className="flex flex-wrap items-center justify-center gap-3">
@@ -871,8 +1107,8 @@ export function ReaderPage() {
               <CheckCircle2 className="h-6 w-6 text-primary" />
               <CardTitle>Leitura concluída</CardTitle>
             </div>
-            <CardDescription>
-              Resumo real da sessão de apresentação RSVP para &ldquo;
+            <CardDescription data-testid="summary-modes-used">
+              Resumo real da sessão ({modesSummaryLabel}) para &ldquo;
               {bundle.document.title}&rdquo;.
             </CardDescription>
           </CardHeader>
@@ -939,8 +1175,136 @@ export function ReaderPage() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Nota: A PPM observada mede o ritmo real de apresentação das palavras em tela; não comprova retenção ou ganho cognitivo. Este texto pessoal não possui questionário objetivo vinculado.
+              Nota: A PPM observada mede o ritmo real de apresentação das palavras em tela; não comprova retenção ou ganho cognitivo.
             </p>
+
+            {bundle.questionSet ? (
+              <div
+                className="rounded-lg border border-primary/40 bg-primary/5 p-4 space-y-3"
+                data-testid="summary-quiz-available-box"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Questionário de compreensão disponível (
+                      {bundle.questionSet.questions.length} questões)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Responda às questões objetivas quando estiver pronto. Você pode voltar ao texto para revisar antes de iniciar o questionário.
+                    </p>
+                  </div>
+                  {bundle.hasPriorPractice && (
+                    <Badge
+                      variant="secondary"
+                      data-testid="summary-prior-practice-badge"
+                    >
+                      Texto já praticado
+                    </Badge>
+                  )}
+                </div>
+                {bundle.hasPriorPractice && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Você já leu este texto anteriormente; a familiaridade pode influenciar o resultado.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  disabled={isStartingQuiz}
+                  onClick={() => void handleOpenQuizAttempt()}
+                  data-testid="summary-start-quiz-btn"
+                >
+                  {isStartingQuiz
+                    ? 'Abrindo questionário...'
+                    : `Responder ${bundle.questionSet.questions.length} questões`}
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="rounded-lg border border-border bg-muted/20 p-4 space-y-3"
+                data-testid="summary-no-quiz-box"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <Badge
+                      variant="outline"
+                      data-testid="summary-no-quiz-badge"
+                    >
+                      Este texto não possui questionário
+                    </Badge>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Conteúdo pessoal importado não gera nota automática nem perguntas por IA. Você pode registrar uma reflexão pessoal sobre o que leu.
+                    </p>
+                  </div>
+                  {!showReflectionForm && !reflectionSaved && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowReflectionForm(true)}
+                      data-testid="toggle-reflection-btn"
+                    >
+                      Registrar reflexão
+                    </Button>
+                  )}
+                </div>
+
+                {showReflectionForm && (
+                  <div className="space-y-2 pt-2 border-t border-border/60">
+                    <label
+                      htmlFor="reflection-textarea"
+                      className="text-xs font-medium block"
+                    >
+                      O que você lembra do texto? (anotação local sem nota)
+                    </label>
+                    <Textarea
+                      id="reflection-textarea"
+                      data-testid="reflection-textarea"
+                      rows={3}
+                      placeholder="Escreva os pontos principais que você recorda..."
+                      value={reflectionText}
+                      onChange={(e) => setReflectionText(e.target.value)}
+                    />
+                    {reflectionError && (
+                      <p
+                        role="alert"
+                        className="text-xs text-destructive"
+                        data-testid="reflection-error-msg"
+                      >
+                        {reflectionError}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void handleSaveReflection()}
+                        data-testid="save-reflection-btn"
+                      >
+                        Salvar reflexão
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowReflectionForm(false)}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {reflectionSaved && (
+                  <div
+                    role="status"
+                    data-testid="reflection-saved-banner"
+                    className="rounded-md border border-primary/40 bg-primary/10 p-2.5 text-xs"
+                  >
+                    Reflexão salva localmente vinculada a esta sessão (sem atribuição de nota).
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex flex-wrap justify-between gap-2">
             <Button

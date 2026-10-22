@@ -329,3 +329,209 @@ export function createSyntheticEpubBytes(
 
   return zipSync(entries);
 }
+
+/**
+ * FX-12a: Texto longo dentro dos limites, com múltiplos parágrafos (ex.: 5.000+ tokens em 100 parágrafos)
+ * para testar janela de blocos no modo guiado sem criar todos os spans no DOM ao mesmo tempo (AC-14).
+ */
+export function createFx12LongText(
+  paragraphCount: number = 100,
+  wordsPerParagraph: number = 50,
+): string {
+  const paragraphs: string[] = [];
+  for (let p = 0; p < paragraphCount; p++) {
+    const words: string[] = [];
+    for (let w = 0; w < wordsPerParagraph; w++) {
+      const globalIdx = p * wordsPerParagraph + w + 1;
+      const suffix =
+        w === wordsPerParagraph - 1
+          ? '.'
+          : w === Math.floor(wordsPerParagraph / 2)
+            ? ','
+            : '';
+      words.push(
+        `termo${String(globalIdx).padStart(5, '0')}${suffix}`,
+      );
+    }
+    paragraphs.push(words.join(' '));
+  }
+  return paragraphs.join('\n\n');
+}
+
+/**
+ * FX-12b: Lote sintético de 200 metadados de documentos e progressos para validar
+ * listagem leve (< 2 s) e janela de biblioteca sem carregar textos completos (AC-14 / AC-29 / RNF-08).
+ */
+export function createFx12SyntheticLibraryBatch(count: number = 200) {
+  const baseTimeMs = Date.UTC(2026, 9, 22, 12, 0, 0);
+  const documents = Array.from({ length: count }, (_, idx) => {
+    const num = idx + 1;
+    const docId = `fx12-doc-${String(num).padStart(3, '0')}`;
+    const cvId = `fx12-cv-${String(num).padStart(3, '0')}`;
+    const iso = new Date(baseTimeMs + idx * 1000).toISOString();
+    return {
+      id: docId,
+      title: `Documento Sintético FX-12 #${String(num).padStart(3, '0')}`,
+      format: (idx % 4 === 0
+        ? 'pdf'
+        : idx % 4 === 1
+          ? 'epub'
+          : idx % 4 === 2
+            ? 'txt'
+            : 'pasted') as 'pasted' | 'txt' | 'pdf' | 'epub',
+      sourceHash: `fx12-sha256-${String(num).padStart(4, '0')}`,
+      contentVersionId: cvId,
+      tokenCount: 1500 + (idx % 10) * 100,
+      createdAt: iso,
+      updatedAt: iso,
+      lastOpenedAt: iso,
+      warnings: [],
+      isTraining: false,
+    };
+  });
+
+  const progress = documents.map((doc, idx) => ({
+    documentId: doc.id,
+    contentVersionId: doc.contentVersionId,
+    cursor: {
+      contentVersionId: doc.contentVersionId,
+      tokenIndex: (idx * 15) % doc.tokenCount,
+    },
+    completed: false,
+    updatedAt: doc.lastOpenedAt,
+    revision: 1,
+  }));
+
+  return { documents, progress };
+}
+
+export type Fx11BackupDefect =
+  | 'path_traversal'
+  | 'future_version'
+  | 'missing_entry'
+  | 'corrupt_hash'
+  | 'uncompressed_overflow';
+
+/**
+ * FX-11: Gerador de pacotes de backup inválidos ou hostis para testar rejeição e rollback (AC-25).
+ */
+export function createFx11InvalidBackupZipBytes(
+  defect: Fx11BackupDefect,
+): Uint8Array {
+  if (defect === 'path_traversal') {
+    return zipSync({
+      'manifest.json': strToU8('{}'),
+      '../escaped-payload.json': strToU8('{"malicious":true}'),
+    });
+  }
+
+  if (defect === 'future_version') {
+    return zipSync({
+      'manifest.json': strToU8(
+        JSON.stringify({
+          formatVersion: 99,
+          appVersion: '9.9.0',
+          dbSchemaVersion: 99,
+          normalizationVersion: 1,
+          tokenizerVersion: 1,
+          exportedAt: '2026-10-22T12:00:00.000Z',
+          encrypted: false,
+          counts: {
+            documents: 0,
+            sourceFiles: 0,
+            contents: 0,
+            tokenChunks: 0,
+            progress: 0,
+            sessions: 0,
+            questionSets: 0,
+            quizAttempts: 0,
+            reflections: 0,
+            settings: 0,
+          },
+          files: [],
+        }),
+      ),
+    });
+  }
+
+  if (defect === 'missing_entry') {
+    return zipSync({
+      'manifest.json': strToU8(
+        JSON.stringify({
+          formatVersion: 1,
+          appVersion: '0.1.0',
+          dbSchemaVersion: 1,
+          normalizationVersion: 1,
+          tokenizerVersion: 1,
+          exportedAt: '2026-10-22T12:00:00.000Z',
+          encrypted: false,
+          counts: {
+            documents: 0,
+            sourceFiles: 0,
+            contents: 0,
+            tokenChunks: 0,
+            progress: 0,
+            sessions: 0,
+            questionSets: 0,
+            quizAttempts: 0,
+            reflections: 0,
+            settings: 0,
+          },
+          files: [
+            {
+              path: 'data/documents.json',
+              byteSize: 2,
+              sha256:
+                '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
+            },
+          ],
+        }),
+      ),
+    });
+  }
+
+  if (defect === 'corrupt_hash') {
+    return zipSync({
+      'manifest.json': strToU8(
+        JSON.stringify({
+          formatVersion: 1,
+          appVersion: '0.1.0',
+          dbSchemaVersion: 1,
+          normalizationVersion: 1,
+          tokenizerVersion: 1,
+          exportedAt: '2026-10-22T12:00:00.000Z',
+          encrypted: false,
+          counts: {
+            documents: 0,
+            sourceFiles: 0,
+            contents: 0,
+            tokenChunks: 0,
+            progress: 0,
+            sessions: 0,
+            questionSets: 0,
+            quizAttempts: 0,
+            reflections: 0,
+            settings: 0,
+          },
+          files: [
+            {
+              path: 'data/documents.json',
+              byteSize: 2,
+              sha256: '00'.repeat(32),
+            },
+          ],
+        }),
+      ),
+      'data/documents.json': strToU8('[]'),
+    });
+  }
+
+  // uncompressed_overflow (excede limite configurável em teste sem exaurir RAM)
+  const payload = new Uint8Array(64 * 1024);
+  payload.fill(0x41);
+  return zipSync({
+    'manifest.json': strToU8('{}'),
+    'data/oversized.bin': payload,
+  });
+}
+
