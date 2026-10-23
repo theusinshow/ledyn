@@ -44,6 +44,11 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 69 OK; `test:e2e` 27 OK.
 - **Próximo:** painel de evolução; depois, estudo do modo "Ouvir" (leitura acompanhada por voz).
 
+## 1.6 Painel de evolução (2026-10-23)
+- **Implementado:** "Sua evolução" no topo do Histórico. Mostra tempo lendo (7 dias, comparado aos 7 anteriores), dias seguidos, palavras apresentadas, PPM observada, minutos por dia (14 dias) e PPM observada por sessão, com tooltip e tabela. Ver [ADR-012](decisions/ADR-012-progress-dashboard.md).
+- **Verificação real:** lint e typecheck OK; `test:unit` 75 OK; `test:e2e` 28 OK.
+- **Próximo:** estudo do modo "Ouvir" (leitura acompanhada por voz), já combinado com o usuário.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

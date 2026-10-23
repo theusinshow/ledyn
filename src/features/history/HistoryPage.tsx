@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ProgressDashboard } from '@/features/history/ProgressDashboard';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, FileCheck2, History, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +104,8 @@ export function HistoryPage() {
           Sessões e tentativas registradas localmente neste dispositivo. Textos, velocidades e repetições diferentes não formam experimento equivalente; velocidade observada e compreensão são apresentadas separadamente.
         </p>
       </div>
+
+      {!isLoading && <ProgressDashboard entries={entries} />}
 
       {/* Filtros por documento e presença de quiz (UX-FLOWS.md Fluxo G / AC-23) */}
       {entries.length > 0 && (
