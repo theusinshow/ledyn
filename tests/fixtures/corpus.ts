@@ -137,6 +137,58 @@ export function createFx04iPdfWithImageBytes(): Uint8Array {
 }
 
 /**
+ * FX-04o: PDF textual de 3 páginas com sumário (outline) embutido:
+ * "Introducao" → p.1, "Desenvolvimento" → p.2, "Conclusao" → p.3.
+ */
+export function createFx04oOutlinePdfBytes(): Uint8Array {
+  const streams = [
+    'BT /F1 12 Tf 72 720 Td (Introducao ao metodo de leitura com foco) Tj ET',
+    'BT /F1 12 Tf 72 720 Td (Desenvolvimento das tecnicas de ritmo e pausa) Tj ET',
+    'BT /F1 12 Tf 72 720 Td (Conclusao com revisao final do conteudo) Tj ET',
+  ];
+  const titles = ['Introducao', 'Desenvolvimento', 'Conclusao'];
+  const pageObj = (i: number) => 4 + i * 2;
+  const outlineRoot = 4 + streams.length * 2;
+  const itemObj = (i: number) => outlineRoot + 1 + i;
+
+  const objects: string[] = [
+    `1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines ${outlineRoot} 0 R >>\nendobj\n`,
+    `2 0 obj\n<< /Type /Pages /Kids [${streams.map((_, i) => `${pageObj(i)} 0 R`).join(' ')}] /Count ${streams.length} >>\nendobj\n`,
+    '3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+  ];
+  streams.forEach((stream, i) => {
+    objects.push(
+      `${pageObj(i)} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${pageObj(i) + 1} 0 R /Resources << /Font << /F1 3 0 R >> >> >>\nendobj\n`,
+      `${pageObj(i) + 1} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+    );
+  });
+  objects.push(
+    `${outlineRoot} 0 obj\n<< /Type /Outlines /First ${itemObj(0)} 0 R /Last ${itemObj(titles.length - 1)} 0 R /Count ${titles.length} >>\nendobj\n`,
+  );
+  titles.forEach((title, i) => {
+    const prev = i > 0 ? ` /Prev ${itemObj(i - 1)} 0 R` : '';
+    const next = i < titles.length - 1 ? ` /Next ${itemObj(i + 1)} 0 R` : '';
+    objects.push(
+      `${itemObj(i)} 0 obj\n<< /Title (${title}) /Parent ${outlineRoot} 0 R${prev}${next} /Dest [${pageObj(i)} 0 R /XYZ 0 792 0] >>\nendobj\n`,
+    );
+  });
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  for (const obj of objects) {
+    offsets.push(pdf.length);
+    pdf += obj;
+  }
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i++) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+/**
  * FX-04L: livro textual longo (padrão 600 páginas, ~300 palavras por página em 30 linhas).
  * Gerado de forma determinística para medir importação e leitura de PDFs grandes.
  */

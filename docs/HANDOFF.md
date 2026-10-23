@@ -39,6 +39,11 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 64 OK; `test:e2e` 24 OK.
 - **Próximo (ordem combinada):** sumário/capítulos (PDF outline e EPUB TOC); depois o painel de evolução. Modo "Ouvir" aguarda o OK do usuário.
 
+## 1.5 Sumário e capítulos (2026-10-23)
+- **Implementado:** painel "Sumário" para PDF (outline do arquivo original) e EPUB (itens do spine), com capítulo atual, progresso e navegação; nome do capítulo no cabeçalho; PDF aberto uma única vez e compartilhado entre o mapa e o sumário (`usePdfRenderer`). Ver [ADR-011](decisions/ADR-011-chapters-and-toc.md).
+- **Verificação real:** lint e typecheck OK; `test:unit` 69 OK; `test:e2e` 27 OK.
+- **Próximo:** painel de evolução; depois, estudo do modo "Ouvir" (leitura acompanhada por voz).
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

@@ -7,18 +7,18 @@ import {
   estimateItemForFraction,
   locatePdfToken,
 } from '@/domain/documents/pdfLocator';
-import { loadSourceFileBlob } from '@/infrastructure/db/repositories';
+import { firstTokenAtOrAfterPage } from '@/domain/documents/chapters';
+import type { PdfRendererState } from '@/features/reader/usePdfRenderer';
 import {
-  PdfPageRenderer,
   unionRects,
   type NormalizedRect,
   type PdfPageTextItemBox,
 } from '@/infrastructure/pdf/pdfPageRenderer';
-import { AppError, toAppError } from '@/shared/errors';
 import { cn } from '@/shared/utils';
 
 export interface PdfScanPanelProps {
-  documentId: string;
+  /** PDF original aberto pelo leitor (compartilhado com o sumário). */
+  pdf: PdfRendererState;
   tokens: Token[];
   blocks: ContentBlock[];
   activeTokenIndex: number;
@@ -27,17 +27,12 @@ export interface PdfScanPanelProps {
   onSeekToToken: (tokenIndex: number) => void;
 }
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'ready'; renderer: PdfPageRenderer }
-  | { status: 'error'; message: string };
-
 /**
  * Mapa visual do PDF original: miniatura da página (com imagens) desenhada localmente
  * e a região aproximada do trecho em leitura, derivada da âncora por bloco.
  */
 export function PdfScanPanel({
-  documentId,
+  pdf: load,
   tokens,
   blocks,
   activeTokenIndex,
@@ -45,7 +40,6 @@ export function PdfScanPanel({
   reducedMotion,
   onSeekToToken,
 }: PdfScanPanelProps) {
-  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [browsePage, setBrowsePage] = useState<number | null>(null);
   const [cssWidth, setCssWidth] = useState(0);
   const [aspect, setAspect] = useState<number>(1 / Math.SQRT2);
@@ -71,41 +65,6 @@ export function PdfScanPanel({
   const cursorPage = location?.page ?? 1;
   const viewPage = browsePage ?? cursorPage;
   const isBrowsing = browsePage !== null && browsePage !== cursorPage;
-
-  // Abre o PDF original uma vez por documento (seguro para StrictMode).
-  // O componente é montado com `key={documentId}`, então o estado inicial já é `loading`.
-  useEffect(() => {
-    let cancelled = false;
-    let opened: PdfPageRenderer | null = null;
-
-    (async () => {
-      const blob = await loadSourceFileBlob(documentId);
-      if (!blob) {
-        throw new AppError(
-          'DOCUMENT_NOT_FOUND',
-          'Arquivo original não encontrado neste navegador.',
-        );
-      }
-      const instance = await PdfPageRenderer.open(blob);
-      if (cancelled) {
-        instance.destroy();
-        return;
-      }
-      opened = instance;
-      setLoad({ status: 'ready', renderer: instance });
-    })().catch((error: unknown) => {
-      if (cancelled) return;
-      setLoad({
-        status: 'error',
-        message: toAppError(error, 'CORRUPT_FILE').userMessage,
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      opened?.destroy();
-    };
-  }, [documentId]);
 
   // Ao iniciar a reprodução, o mapa volta a acompanhar o cursor.
   const [prevIsPlaying, setPrevIsPlaying] = useState(isPlaying);
@@ -198,14 +157,9 @@ export function PdfScanPanel({
 
   const showHighlight = viewPage === cursorPage && renderedPage === viewPage;
 
-  const firstTokenFromPage = (page: number): number | null => {
-    for (let p = page; p <= pageCount; p++) {
-      const token = pageIndex.firstTokenByPage.get(p);
-      if (token !== undefined) return token;
-    }
-    return null;
-  };
-  const readFromToken = isBrowsing ? firstTokenFromPage(viewPage) : null;
+  const readFromToken = isBrowsing
+    ? firstTokenAtOrAfterPage(pageIndex, viewPage)
+    : null;
 
   return (
     <section

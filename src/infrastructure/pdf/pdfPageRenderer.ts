@@ -1,4 +1,5 @@
 import PdfJsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs?worker';
+import type { PdfOutlineItem } from '@/domain/documents/chapters';
 import { AppError } from '@/shared/errors';
 
 /**
@@ -187,6 +188,56 @@ export class PdfPageRenderer {
     this.itemCache.set(pageNumber, pending);
     pending.catch(() => this.itemCache.delete(pageNumber));
     return pending;
+  }
+
+  /**
+   * Sumário (outline) achatado, com profundidade e página de destino resolvida.
+   * Destinos externos/URL são ignorados; nada é aberto ou navegado.
+   */
+  async getOutline(maxDepth = 3, maxItems = 1_000): Promise<PdfOutlineItem[]> {
+    type OutlineNode = {
+      title: string;
+      dest: string | unknown[] | null;
+      items: OutlineNode[];
+    };
+    const roots = ((await this.doc.getOutline()) ?? []) as OutlineNode[];
+    const result: PdfOutlineItem[] = [];
+
+    const resolvePage = async (dest: OutlineNode['dest']): Promise<number | null> => {
+      try {
+        const explicit =
+          typeof dest === 'string' ? await this.doc.getDestination(dest) : dest;
+        if (!Array.isArray(explicit) || explicit.length === 0) return null;
+        const ref = explicit[0];
+        if (typeof ref === 'number') return ref + 1;
+        if (ref && typeof ref === 'object') {
+          const pageIndex = await this.doc.getPageIndex(
+            ref as Parameters<PdfDocument['getPageIndex']>[0],
+          );
+          return pageIndex + 1;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    const walk = async (nodes: OutlineNode[], depth: number) => {
+      for (const node of nodes) {
+        if (result.length >= maxItems || this.destroyed) return;
+        result.push({
+          title: typeof node.title === 'string' ? node.title : '',
+          depth,
+          page: await resolvePage(node.dest),
+        });
+        if (depth + 1 < maxDepth && Array.isArray(node.items)) {
+          await walk(node.items, depth + 1);
+        }
+      }
+    };
+
+    await walk(roots, 0);
+    return result;
   }
 
   destroy(): void {

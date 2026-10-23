@@ -1,4 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -44,7 +52,17 @@ import {
   countUniqueCoveredTokens,
   formatObservedWpm,
 } from '@/domain/reading/metrics';
+import {
+  chaptersFromEpubBlocks,
+  chaptersFromPdfOutline,
+  findCurrentChapterIndex,
+  type ChapterEntry,
+  type PdfOutlineItem,
+} from '@/domain/documents/chapters';
+import { buildPdfPageIndex } from '@/domain/documents/pdfLocator';
+import { ChapterPanel } from '@/features/reader/ChapterPanel';
 import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
+import { usePdfRenderer } from '@/features/reader/usePdfRenderer';
 import { ReadingLeaseManager } from '@/infrastructure/db/leaseManager';
 
 // Carregado sob demanda: mantém PDF.js fora do bundle inicial do leitor.
@@ -127,6 +145,62 @@ export function ReaderPage() {
 
   const effectiveReducedMotion =
     preferences.reducedMotion || systemReducedMotion;
+
+  // PDF original aberto uma vez e compartilhado entre o mapa e o sumário.
+  const isPdfDocument = bundle?.document.format === 'pdf';
+  const pdf = usePdfRenderer(bundle?.document.id ?? null, isPdfDocument);
+  const [pdfOutline, setPdfOutline] = useState<{
+    renderer: unknown;
+    items: PdfOutlineItem[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (pdf.status !== 'ready') return;
+    let cancelled = false;
+    const renderer = pdf.renderer;
+    renderer
+      .getOutline()
+      .then((items) => {
+        if (!cancelled) setPdfOutline({ renderer, items });
+      })
+      .catch(() => {
+        if (!cancelled) setPdfOutline({ renderer, items: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf]);
+
+  const chapters = useMemo<ChapterEntry[]>(() => {
+    if (!bundle) return [];
+    const { format } = bundle.document;
+    if (format === 'epub') {
+      return chaptersFromEpubBlocks(
+        bundle.content.blocks,
+        bundle.tokens,
+        bundle.content.normalizedText,
+      );
+    }
+    if (
+      format === 'pdf' &&
+      pdf.status === 'ready' &&
+      pdfOutline?.renderer === pdf.renderer
+    ) {
+      return chaptersFromPdfOutline(
+        pdfOutline.items,
+        buildPdfPageIndex(bundle.content.blocks, bundle.tokens),
+        bundle.tokens.length,
+      );
+    }
+    return [];
+  }, [bundle, pdf, pdfOutline]);
+
+  const chapterEmptyMessage =
+    pdf.status === 'ready' && pdfOutline?.renderer === pdf.renderer
+      ? 'Este PDF não tem sumário embutido. Use o mapa de páginas para navegar.'
+      : pdf.status === 'error'
+        ? 'Não foi possível ler o sumário do PDF original.'
+        : 'Lendo o sumário do PDF…';
 
   const persistCheckpoint = useCallback(
     async (
@@ -738,6 +812,16 @@ export function ReaderPage() {
   const isCompleted = snapshot.status === 'completed';
   const isGuidedMode = snapshot.mode === 'guided';
   const showPdfScan = bundle.document.format === 'pdf' && !isCompleted;
+  const showChapters =
+    !isCompleted &&
+    (bundle.document.format === 'pdf' || bundle.document.format === 'epub');
+  const showSideColumn = showPdfScan || showChapters;
+  const currentChapterIndex = findCurrentChapterIndex(
+    chapters,
+    snapshot.cursor.tokenIndex,
+  );
+  const currentChapter =
+    currentChapterIndex >= 0 ? chapters[currentChapterIndex] : undefined;
   const progressPercent = calculateProgressPercent(
     snapshot.cursor.tokenIndex,
     snapshot.tokenCount,
@@ -817,6 +901,14 @@ export function ReaderPage() {
           >
             {bundle.document.title}
           </h1>
+          {currentChapter && (
+            <span
+              className="hidden truncate text-[0.8125rem] text-muted-foreground md:inline"
+              data-testid="reader-current-chapter"
+            >
+              <span className="text-subtle-foreground">/</span> {currentChapter.title}
+            </span>
+          )}
         </div>
 
         {/* Alternador de Modo (RSVP / Guiada) + Indicador Honesto de Persistência */}
@@ -985,7 +1077,7 @@ export function ReaderPage() {
 
       <div
         className={
-          showPdfScan
+          showSideColumn
             ? 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_24rem] lg:items-start'
             : undefined
         }
@@ -1544,8 +1636,18 @@ export function ReaderPage() {
       </Card>
       </div>
 
-      {showPdfScan && (
-        <aside className="lg:sticky lg:top-6">
+      {showSideColumn && (
+        <aside className="space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+          {showChapters && (
+            <ChapterPanel
+              chapters={chapters}
+              currentIndex={currentChapterIndex}
+              activeTokenIndex={snapshot.cursor.tokenIndex}
+              emptyMessage={chapterEmptyMessage}
+              onSelectChapter={(tokenIdx) => void handleSeekTo(tokenIdx)}
+            />
+          )}
+          {showPdfScan && (
           <Suspense
             fallback={
               <div className="aspect-[1/1.3] animate-pulse rounded-xl border border-border bg-card" />
@@ -1553,7 +1655,7 @@ export function ReaderPage() {
           >
             <PdfScanPanel
               key={bundle.document.id}
-              documentId={bundle.document.id}
+              pdf={pdf}
               tokens={bundle.tokens}
               blocks={bundle.content.blocks}
               activeTokenIndex={snapshot.cursor.tokenIndex}
@@ -1562,6 +1664,7 @@ export function ReaderPage() {
               onSeekToToken={(tokenIdx) => void handleSeekTo(tokenIdx)}
             />
           </Suspense>
+          )}
         </aside>
       )}
       </div>
