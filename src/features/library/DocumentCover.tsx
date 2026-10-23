@@ -79,7 +79,7 @@ export function DocumentCover({
       data-testid={`library-item-cover-${documentId}`}
       data-cover-state={coverUrl ? 'image' : 'placeholder'}
       className={cn(
-        'relative aspect-[3/4] w-16 shrink-0 overflow-hidden rounded-md bg-surface-sunken shadow-[0_1px_0_rgb(255_255_255/0.06)_inset,0_6px_16px_-8px_rgb(0_0_0/0.5)] ring-1 ring-border-strong sm:w-[72px]',
+        'relative aspect-[3/4] w-16 shrink-0 overflow-hidden rounded-md bg-surface-sunken shadow-[0_1px_0_rgb(255_255_255/0.06)_inset,0_6px_16px_-8px_rgb(0_0_0/0.5)] ring-1 ring-border-strong sm:w-[4.5rem]',
         className,
       )}
     >
@@ -94,7 +94,7 @@ export function DocumentCover({
           aria-hidden="true"
           className="flex h-full w-full flex-col justify-between bg-gradient-to-br from-primary/25 via-surface-raised to-surface-sunken p-2"
         >
-          <span className="font-mono text-[8.5px] font-medium tracking-[0.12em] text-muted-foreground">
+          <span className="font-mono text-[0.53rem] font-medium tracking-[0.12em] text-muted-foreground">
             {FORMAT_LABEL[format]}
           </span>
           <span className="text-lg font-semibold leading-none tracking-[-0.03em] text-foreground/85">

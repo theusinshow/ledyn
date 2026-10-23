@@ -980,7 +980,7 @@ export function ReaderPage() {
       <div
         className={
           showPdfScan
-            ? 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start'
+            ? 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_24rem] lg:items-start'
             : undefined
         }
       >
@@ -990,7 +990,7 @@ export function ReaderPage() {
         <Card className="overflow-hidden">
           <CardContent className="p-6 sm:p-10">
             {!isGuidedMode ? (
-              <div className="relative flex min-h-[220px] select-none flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-sunken px-4 py-8 sm:min-h-[260px]">
+              <div className="relative flex min-h-[13.75rem] select-none flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-sunken px-4 py-8 sm:min-h-[16.25rem] 2xl:min-h-[22rem]">
                 <div
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]"
@@ -1008,8 +1008,8 @@ export function ReaderPage() {
                   data-testid="rsvp-word-display"
                   className={`relative w-full text-center font-medium tracking-[-0.025em] break-words leading-tight ${
                     isLongWord
-                      ? 'text-3xl sm:text-4xl'
-                      : 'text-4xl sm:text-6xl'
+                      ? 'text-3xl sm:text-4xl 2xl:text-5xl'
+                      : 'text-4xl sm:text-6xl 2xl:text-7xl'
                   }`}
                 >
                   <span>{focalParts.prefix}</span>
@@ -1068,7 +1068,7 @@ export function ReaderPage() {
                   size="lg"
                   onClick={() => void handleTogglePlayPause()}
                   data-testid="rsvp-play-pause-btn"
-                  className="min-w-[150px]"
+                  className="min-w-[9.375rem]"
                 >
                   {isPlaying ? (
                     <>
@@ -1095,7 +1095,7 @@ export function ReaderPage() {
               </div>
 
               <div className="w-full max-w-xl space-y-1.5">
-                <div className="flex items-center justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
+                <div className="flex items-center justify-between font-mono text-[0.6875rem] tabular-nums text-muted-foreground">
                   <span data-testid="rsvp-cursor-position">
                     Palavra {snapshot.cursor.tokenIndex + 1} de{' '}
                     {snapshot.tokenCount}

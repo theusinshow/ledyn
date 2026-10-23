@@ -219,7 +219,7 @@ export function PdfScanPanel({
           <span className="eyebrow !text-muted-foreground">Mapa do PDF</span>
         </div>
         <span
-          className="font-mono text-[11px] tabular-nums text-muted-foreground"
+          className="font-mono text-[0.6875rem] tabular-nums text-muted-foreground"
           data-testid="pdf-scan-page-label"
           aria-live="polite"
         >
@@ -383,13 +383,13 @@ export function PdfScanPanel({
               )}
             </div>
           ) : (
-            <span className="text-[11px] text-subtle-foreground">
+            <span className="text-[0.6875rem] text-subtle-foreground">
               {isPlaying ? 'Acompanhando a leitura' : 'Em pausa'}
             </span>
           )}
         </div>
 
-        <p className="mt-2 text-[11px] leading-relaxed text-subtle-foreground">
+        <p className="mt-2 text-[0.6875rem] leading-relaxed text-subtle-foreground">
           Destaque aproximado pelo bloco de texto extraído; não marca a palavra exata.
         </p>
       </div>

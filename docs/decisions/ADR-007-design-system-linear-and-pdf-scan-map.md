@@ -28,3 +28,7 @@ O usuário pediu para refazer o design system usando o Linear como referência e
 - Unitário: `tests/unit/pdfLocator.test.ts` (5 casos).
 - E2E: `tests/e2e/reader-pdf-scan.spec.ts`. Cobre renderização real em canvas, destaque visível, navegação sem alterar o cursor, "Ler desta página", ausência de requisições externas, **imagem do PDF visível no mapa** (nova fixture FX-04i) e ausência do mapa em texto colado.
 - Pendente: aceite visual do usuário e uso em aparelho físico.
+
+## Atualização 2026-10-23 — escala para telas 2K
+
+A pedido do usuário ("em 2K está tudo muito pequeno"), a interface passou a escalar de forma fluida. O `font-size` da raiz vai de 16px (até ~1440px de largura) a 20px em 2560px, com teto de 22px. A fórmula é `clamp(16px, calc(10.86px + 0.357vw), 22px)`. Todos os tamanhos tipográficos e de layout em px viraram rem; só detalhes decorativos de 2–3px continuam em px. A fonte da Leitura Guiada continua sendo uma preferência em px (base 16), mas é aplicada em rem, então cresce junto. Larguras maiores em telas grandes: biblioteca e configurações até `max-w-6xl`, leitor até `90rem`, coluna do mapa de 24rem. O palco do RSVP também fica mais alto e com palavra maior em `2xl`. Celular e telas de até ~1440px continuam como antes.

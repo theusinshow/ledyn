@@ -345,7 +345,7 @@ export function GuidedReadingView({
               <Minus className="h-3.5 w-3.5" />
             </Button>
             <span
-              className="font-mono font-semibold min-w-[38px] text-center"
+              className="font-mono font-semibold min-w-[2.375rem] text-center"
               data-testid="guided-font-size-value"
             >
               {fontSizePx}px
@@ -460,8 +460,8 @@ export function GuidedReadingView({
         }}
         onKeyDown={handleContainerKeyDown}
         onScroll={handleContainerScroll}
-        style={{ fontSize: `${fontSizePx}px` }}
-        className="max-h-[380px] sm:max-h-[440px] overflow-y-auto rounded-xl border border-border bg-muted/15 px-4 py-6 sm:px-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ fontSize: `${fontSizePx / 16}rem` }}
+        className="max-h-[23.75rem] sm:max-h-[27.5rem] overflow-y-auto rounded-xl border border-border bg-muted/15 px-4 py-6 sm:px-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="mx-auto max-w-[65ch] space-y-4 leading-relaxed break-words">
           {windowSlice.items.map(({ block, tokens: blockTokens }) => {

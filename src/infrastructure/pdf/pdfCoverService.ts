@@ -10,7 +10,7 @@ import { PdfPageRenderer } from '@/infrastructure/pdf/pdfPageRenderer';
  * As capas são geradas uma por vez para não abrir vários PDFs grandes em paralelo.
  */
 
-const COVER_CSS_WIDTH = 120;
+const COVER_CSS_WIDTH = 180;
 
 const cache = new Map<string, Promise<string | null>>();
 let queue: Promise<unknown> = Promise.resolve();

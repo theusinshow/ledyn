@@ -137,10 +137,10 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
             >
               <BrandMark />
               <span className="flex flex-col leading-none">
-                <span className="text-[13px] font-semibold tracking-[-0.01em]">
+                <span className="text-[0.8125rem] font-semibold tracking-[-0.01em]">
                   Ledyn
                 </span>
-                <span className="mt-1 text-[11px] text-subtle-foreground">
+                <span className="mt-1 text-[0.6875rem] text-subtle-foreground">
                   Leitura Dinâmica Pessoal
                 </span>
               </span>
@@ -157,7 +157,7 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
                     to={item.to}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'group relative flex min-h-9 items-center gap-2.5 rounded-md px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'group relative flex min-h-9 items-center gap-2.5 rounded-md px-2 text-[0.8125rem] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       active
                         ? 'bg-accent text-foreground'
                         : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
@@ -178,7 +178,7 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
 
             <div className="mt-auto rounded-lg border border-border bg-surface-sunken/60 p-3">
               <p className="eyebrow mb-1">Local-first</p>
-              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+              <p className="text-[0.71875rem] leading-relaxed text-muted-foreground">
                 Tudo fica neste navegador. Sem conta, sem rede.
               </p>
             </div>
@@ -189,7 +189,7 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
           {!isReaderRoute && (
             <header className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md sm:hidden">
               <BrandMark />
-              <Link to="/library" className="text-[13px] font-semibold">
+              <Link to="/library" className="text-[0.8125rem] font-semibold">
                 Ledyn
               </Link>
             </header>
@@ -198,7 +198,9 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
           <main
             className={cn(
               'mx-auto w-full flex-1 px-4 py-6 pb-24 animate-fade-up sm:px-8 sm:py-10 sm:pb-12',
-              isReaderRoute ? 'max-w-6xl' : 'max-w-4xl',
+              isReaderRoute
+                ? 'max-w-6xl 2xl:max-w-[90rem]'
+                : 'max-w-4xl xl:max-w-5xl 2xl:max-w-6xl',
             )}
           >
             {children}
@@ -222,7 +224,7 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
                   to={item.to}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     active ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >

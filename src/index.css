@@ -68,7 +68,13 @@
     color-scheme: dark;
   }
 
+  /*
+   * Escala fluida da interface: 16px até ~1440px de largura e cresce linearmente
+   * até 20px em 2560px (monitores 2K/1440p), limitado a 22px em telas maiores.
+   * Todo o layout usa rem, então tipografia, espaçamentos e controles crescem juntos.
+   */
   html {
+    font-size: clamp(16px, calc(10.86px + 0.357vw), 22px);
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
@@ -84,7 +90,7 @@
       transparent 70%
     );
     background-attachment: fixed;
-    font-size: 14px;
+    font-size: 0.875rem;
     letter-spacing: -0.005em;
   }
 
@@ -198,7 +204,7 @@
   /* Rótulo de seção no estilo Linear: pequeno, caixa-alta, espaçado. */
   .eyebrow {
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 0.65625rem;
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -216,7 +222,7 @@
     background: var(--surface-raised);
     padding: 0 0.3rem;
     font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-size: 0.65625rem;
     color: var(--muted-foreground);
   }
 }
