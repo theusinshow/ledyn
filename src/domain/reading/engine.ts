@@ -5,12 +5,17 @@ import type {
   ReadingMode,
   SpeedChangeEntry,
   Token,
+  TokenBoundary,
 } from '@/domain/contracts';
 import type { Clock } from '@/domain/reading/clock';
 import {
-  calculateTokenDurationMs,
+  calculateChunkDurationMs,
+  findChunkEndIndex,
+  findRewindTarget,
   findSentenceStartIndex,
+  MAX_CHUNK_SIZE,
   mergeCoverageRange,
+  MIN_CHUNK_SIZE,
   RESUME_RAMP_FACTORS,
 } from '@/domain/reading/metrics';
 import { AppError } from '@/shared/errors';
@@ -56,6 +61,10 @@ export interface EngineSnapshot {
   lastPauseReason: PauseReason | null;
   /** Quantos tokens a última retomada recuou para o início da frase (0 = não recuou). */
   resumeRewindTokens: number;
+  /** Palavras por apresentação no RSVP (1 a 3). */
+  chunkSize: number;
+  /** Fim (exclusivo) do bloco exibido a partir do cursor atual. */
+  chunkEndIndex: number;
 }
 
 export interface ReadingEngineOptions {
@@ -71,6 +80,7 @@ export interface ReadingEngineOptions {
   initialCoverageRanges?: CoverageRange[];
   initialModeSegments?: ModeSegment[];
   initialSettingsChanges?: SpeedChangeEntry[];
+  initialChunkSize?: number;
   onStateChange?: (snapshot: EngineSnapshot) => void;
   onTokenPresented?: (snapshot: EngineSnapshot) => void;
   onTransitionCheckpoint?: (
@@ -87,6 +97,11 @@ export function validateWpm(wpm: number): number {
     );
   }
   return Math.round(wpm);
+}
+
+function clampChunkSize(size: number): number {
+  if (!Number.isFinite(size)) return MIN_CHUNK_SIZE;
+  return Math.min(MAX_CHUNK_SIZE, Math.max(MIN_CHUNK_SIZE, Math.trunc(size)));
 }
 
 export function clampWpmStep(wpm: number): number {
@@ -116,6 +131,9 @@ export class ReadingEngine {
   private settingsChanges: SpeedChangeEntry[];
   private lastPauseReason: PauseReason | null = null;
   private resumeRewindTokens = 0;
+  private chunkSize: number;
+  private boundaries: TokenBoundary[];
+  private currentChunkLength = 1;
   private rampStep = RESUME_RAMP_FACTORS.length;
 
   private activeTimerId: number | null = null;
@@ -144,6 +162,8 @@ export class ReadingEngine {
     this.wpm = validateWpm(options.initialWpm ?? DEFAULT_WPM);
     this.punctuationPauseEnabled = options.initialPunctuationPauseEnabled ?? true;
     this.mode = options.initialMode ?? 'rsvp';
+    this.chunkSize = clampChunkSize(options.initialChunkSize ?? 1);
+    this.boundaries = this.tokens.map((t) => t.boundary);
 
     this.activeMs = Math.max(0, options.initialActiveMs ?? 0);
     this.presentedCount = Math.max(0, options.initialPresentedCount ?? 0);
@@ -193,6 +213,11 @@ export class ReadingEngine {
       settingsChanges: [...this.settingsChanges],
       lastPauseReason: this.lastPauseReason,
       resumeRewindTokens: this.resumeRewindTokens,
+      chunkSize: this.chunkSize,
+      chunkEndIndex:
+        this.tokenIndex < this.tokens.length
+          ? findChunkEndIndex(this.boundaries, this.tokenIndex, this.chunkSize)
+          : this.tokenIndex,
     };
   }
 
@@ -224,10 +249,7 @@ export class ReadingEngine {
       this.lastPauseReason !== null &&
       REWIND_ON_RESUME_REASONS.has(this.lastPauseReason)
     ) {
-      const start = findSentenceStartIndex(
-        this.tokens.map((t) => t.boundary),
-        this.tokenIndex,
-      );
+      const start = findSentenceStartIndex(this.boundaries, this.tokenIndex);
       this.resumeRewindTokens = this.tokenIndex - start;
       this.tokenIndex = start;
     }
@@ -308,6 +330,42 @@ export class ReadingEngine {
       changedAt: new Date().toISOString(),
     });
     this.emitStateChange();
+  }
+
+  /** Palavras por apresentação (1–3); vale a partir da próxima exposição. */
+  setChunkSize(size: number): void {
+    const next = clampChunkSize(size);
+    if (next === this.chunkSize) return;
+    this.chunkSize = next;
+    this.emitStateChange();
+  }
+
+  /**
+   * "Perdi o fio": volta ao início da frase ou do parágrafo atual (ou anterior, se já
+   * estiver no começo). Se estiver tocando, continua tocando a partir dali com rampa;
+   * se estiver pausado, apenas reposiciona.
+   */
+  rewind(unit: 'sentence' | 'paragraph'): void {
+    if (this.tokens.length === 0) return;
+    const fromIndex = Math.min(this.tokenIndex, this.tokens.length - 1);
+    const target = findRewindTarget(this.boundaries, fromIndex, unit);
+    if (this.status !== 'playing') {
+      this.seek(target);
+      return;
+    }
+    const now = this.clock.now();
+    if (this.currentExposureStartMs !== null) {
+      const elapsed = Math.max(0, now - this.currentExposureStartMs);
+      this.activeMs += Math.min(elapsed, this.currentExposureExpectedDurationMs);
+    }
+    this.cancelCurrentTimer();
+    this.tokenIndex = target;
+    this.resumeRewindTokens = 0;
+    this.rampStep = this.punctuationPauseEnabled ? 0 : RESUME_RAMP_FACTORS.length;
+    this.scheduleCurrentToken();
+    const snapshot = this.getSnapshot();
+    this.emitStateChange();
+    this.onTransitionCheckpoint?.(snapshot, 'seek');
   }
 
   /**
@@ -399,8 +457,10 @@ export class ReadingEngine {
     const rampFactor = this.punctuationPauseEnabled
       ? (RESUME_RAMP_FACTORS[this.rampStep] ?? 1)
       : 1;
-    const durationMs = calculateTokenDurationMs(
-      token,
+    const chunkEnd = findChunkEndIndex(this.boundaries, this.tokenIndex, this.chunkSize);
+    this.currentChunkLength = Math.max(1, chunkEnd - this.tokenIndex);
+    const durationMs = calculateChunkDurationMs(
+      this.tokens.slice(this.tokenIndex, chunkEnd),
       this.wpm,
       this.punctuationPauseEnabled,
       rampFactor,
@@ -446,13 +506,14 @@ export class ReadingEngine {
 
     // Exposição concluída normalmente
     this.activeMs += actualElapsedMs;
-    this.presentedCount += 1;
+    const presentedLength = this.currentChunkLength;
+    this.presentedCount += presentedLength;
     this.rampStep += 1;
     this.coverageRanges = mergeCoverageRange(this.coverageRanges, [
       this.tokenIndex,
-      this.tokenIndex + 1,
+      this.tokenIndex + presentedLength,
     ]);
-    this.tokenIndex += 1;
+    this.tokenIndex += presentedLength;
 
     if (this.tokenIndex >= this.tokens.length) {
       this.recordModeSegmentIfNeeded();

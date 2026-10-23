@@ -1347,6 +1347,8 @@ export interface UserPreferences {
   punctuationPauseEnabled: boolean;
   guidedFontSizePx: number;
   reducedMotion: boolean;
+  /** Palavras por apresentação no RSVP (1 a 3). */
+  rsvpChunkSize: number;
 }
 
 export interface LoadedPreferencesResult {
@@ -1361,11 +1363,13 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   punctuationPauseEnabled: true,
   guidedFontSizePx: DEFAULT_GUIDED_FONT_SIZE_PX,
   reducedMotion: false,
+  rsvpChunkSize: 1,
 };
 
 const themeSchema = z.enum(['light', 'dark', 'system']);
 const wpmSchema = z.number().int().min(MIN_WPM).max(MAX_WPM);
 const boolSchema = z.boolean();
+const chunkSizeSchema = z.number().int().min(1).max(3);
 const fontSizeSchema = z
   .number()
   .int()
@@ -1405,6 +1409,11 @@ export async function loadUserPreferencesWithDiagnostics(
       invalidKeys.push('reducedMotion');
     }
 
+    const parsedChunk = chunkSizeSchema.safeParse(map.get('rsvpChunkSize'));
+    if (map.has('rsvpChunkSize') && !parsedChunk.success) {
+      invalidKeys.push('rsvpChunkSize');
+    }
+
     const preferences: UserPreferences = {
       theme: parsedTheme.success
         ? parsedTheme.data
@@ -1421,6 +1430,9 @@ export async function loadUserPreferencesWithDiagnostics(
       reducedMotion: parsedMotion.success
         ? parsedMotion.data
         : DEFAULT_USER_PREFERENCES.reducedMotion,
+      rsvpChunkSize: parsedChunk.success
+        ? parsedChunk.data
+        : DEFAULT_USER_PREFERENCES.rsvpChunkSize,
     };
 
     const warningMessage =
@@ -1473,6 +1485,10 @@ export async function saveUserPreferences(
         partial.reducedMotion !== undefined
           ? boolSchema.parse(partial.reducedMotion)
           : current.reducedMotion,
+      rsvpChunkSize:
+        partial.rsvpChunkSize !== undefined
+          ? chunkSizeSchema.parse(partial.rsvpChunkSize)
+          : current.rsvpChunkSize,
     };
 
     await database.transaction('rw', database.settings, async () => {
@@ -1492,6 +1508,11 @@ export async function saveUserPreferences(
         {
           key: 'reducedMotion',
           value: merged.reducedMotion,
+          schemaVersion: 1,
+        },
+        {
+          key: 'rsvpChunkSize',
+          value: merged.rsvpChunkSize,
           schemaVersion: 1,
         },
       ]);

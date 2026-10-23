@@ -26,6 +26,8 @@ export interface GuidedReadingViewProps {
   blocks: ContentBlock[];
   tokens: Token[];
   activeTokenIndex: number;
+  /** Fim (exclusivo) do bloco atual quando o leitor apresenta 2–3 palavras por vez. */
+  activeTokenEndIndex?: number;
   isPlaying: boolean;
   fontSizePx: number;
   reducedMotion: boolean;
@@ -47,6 +49,7 @@ export function GuidedReadingView({
   blocks,
   tokens,
   activeTokenIndex,
+  activeTokenEndIndex,
   isPlaying,
   fontSizePx,
   reducedMotion,
@@ -486,6 +489,11 @@ export function GuidedReadingView({
               }
 
               const isActive = token.index === activeTokenIndex;
+              const isInActiveChunk =
+                !isActive &&
+                activeTokenEndIndex !== undefined &&
+                token.index > activeTokenIndex &&
+                token.index < activeTokenEndIndex;
               elements.push(
                 <span
                   key={token.index}
@@ -513,7 +521,9 @@ export function GuidedReadingView({
                     'inline rounded-xs px-0.5 transition-none cursor-pointer select-text',
                     isActive
                       ? 'bg-primary text-primary-foreground font-bold underline decoration-2 underline-offset-4 ring-2 ring-primary/80'
-                      : 'hover:bg-accent hover:text-accent-foreground',
+                      : isInActiveChunk
+                        ? 'bg-primary/80 text-primary-foreground font-bold'
+                        : 'hover:bg-accent hover:text-accent-foreground',
                   )}
                 >
                   {token.text}

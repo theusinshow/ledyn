@@ -47,3 +47,30 @@ export function splitWordFocalParts(word: string): FocalParts {
     suffix: chars.slice(pivotIndex + 1).join(''),
   };
 }
+
+/**
+ * Letra de foco de um bloco de 2–3 palavras: cerca de 35% da largura do bloco,
+ * ajustada para a letra mais próxima. Para uma palavra só, usa a tabela por palavra.
+ */
+export function splitPhraseFocalParts(text: string): FocalParts {
+  if (!/\s/.test(text.trim())) return splitWordFocalParts(text);
+  const chars = Array.from(text);
+  let pivotIndex = Math.round((chars.length - 1) * 0.35);
+  for (let offset = 0; offset < chars.length; offset++) {
+    const left = pivotIndex - offset;
+    const right = pivotIndex + offset;
+    if (left >= 0 && LETTER_OR_DIGIT.test(chars[left]!)) {
+      pivotIndex = left;
+      break;
+    }
+    if (right < chars.length && LETTER_OR_DIGIT.test(chars[right]!)) {
+      pivotIndex = right;
+      break;
+    }
+  }
+  return {
+    prefix: chars.slice(0, pivotIndex).join(''),
+    pivot: chars[pivotIndex] ?? '',
+    suffix: chars.slice(pivotIndex + 1).join(''),
+  };
+}

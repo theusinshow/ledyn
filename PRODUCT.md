@@ -79,7 +79,7 @@ PDF escaneado sem texto não é aceito como importação bem-sucedida. PDF com s
 
 ### RF-03 — RSVP
 
-RSVP apresenta tokens em uma posição estável, preservando acentos e pontuação. O usuário inicia, pausa, retoma, retrocede e avança pausado. Primeira versão trabalha com uma palavra por apresentação. Palavra longa deve caber por quebra controlada ou ajuste limitado de fonte, sem corte silencioso.
+RSVP apresenta tokens em uma posição estável, preservando acentos e pontuação. O usuário inicia, pausa, retoma, retrocede e avança pausado. Por padrão apresenta uma palavra por vez; opcionalmente, blocos de 2–3 palavras que nunca atravessam pontuação, sem mudar a PPM configurada. "Voltar frase" (R) e "voltar parágrafo" (Shift+R) retornam ao início da unidade atual, ou ao da anterior se o cursor já estiver no começo, e continuam tocando se a leitura estava em andamento (ADR-010). Palavra longa deve caber por quebra controlada ou ajuste limitado de fonte, sem corte silencioso.
 
 **Aceite:** a 300 PPM, sem pausas extras, cada token tem duração-base de 200 ms no relógio controlado de teste; 100 tokens correspondem a 20 s de exposição ideal. Pausar não avança; recomeçar não cria dois temporizadores. Alteração de velocidade entra na próxima apresentação. Ocultar a página pausa e exige retomada manual.
 

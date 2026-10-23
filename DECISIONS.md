@@ -35,7 +35,7 @@ As escolhas abaixo tornam a implementação executável, mas não são apresenta
 | P01 | Português do Brasil e nome provisório "Leitura dinâmica pessoal". | Adequado ao pedido; marca e identidade podem mudar depois. |
 | P02 | Sem backend, login, telemetria ou sincronização no MVP. | Reduzir dependência externa e manter privacidade local. |
 | P03 | Texto colado/TXT primeiro; PDF e EPUB ainda dentro do MVP completo. | Fatias funcionais antes dos parsers mais complexos. |
-| P04 | RSVP de uma palavra, 100–800 PPM, padrão 250 e passo 25. | Controles simples; validar conforto no uso pessoal. |
+| P04 | RSVP de 1 palavra por padrão, com opção de blocos de 2–3 palavras que param na pontuação (23/10/2026, ADR-010); 100–800 PPM, padrão 250 e passo 25. | Controles simples; validar conforto no uso pessoal. |
 | P05 | Guiado sobre texto normalizado, com destaque por palavra. | Compartilha cursor e evita prometer fidelidade editorial. |
 | P06 | Três treinos originais, quatro perguntas cada; reflexão sem nota nos imports. | Compreensão objetiva sem IA ou necessidade de perguntas para todo arquivo. |
 | P07 | Limites de 40 MiB por arquivo, 1.000 páginas PDF, 3.000.000 de unidades UTF-16, 500.000 tokens e timeout de 180 s. | Conter custo no celular; atualizado para 40 MiB e, em 23/10/2026, para livros de 600+ páginas conforme pedido do usuário (ADR-008). |

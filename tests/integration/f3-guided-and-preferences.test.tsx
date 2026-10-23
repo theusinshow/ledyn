@@ -283,6 +283,7 @@ describe('Fase F3 — Leitura Guiada, Sessões Robustas, Janela de Texto Longo e
       punctuationPauseEnabled: false,
       guidedFontSizePx: 26,
       reducedMotion: true,
+      rsvpChunkSize: 1,
     });
     expect(window.localStorage.length).toBe(0);
 

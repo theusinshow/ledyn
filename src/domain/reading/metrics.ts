@@ -85,6 +85,68 @@ export function findSentenceStartIndex(
   return limit;
 }
 
+export const MIN_CHUNK_SIZE = 1;
+export const MAX_CHUNK_SIZE = 3;
+
+/**
+ * Fim (exclusivo) do bloco de até `chunkSize` palavras que começa em `start`.
+ * O bloco nunca atravessa pontuação: termina no primeiro token com fronteira,
+ * para cada grupo continuar sendo um trecho com sentido.
+ */
+export function findChunkEndIndex(
+  boundaries: ReadonlyArray<TokenBoundary>,
+  start: number,
+  chunkSize: number,
+): number {
+  const size = Math.min(MAX_CHUNK_SIZE, Math.max(MIN_CHUNK_SIZE, Math.trunc(chunkSize)));
+  const limit = Math.min(boundaries.length, start + size);
+  for (let i = start; i < limit; i++) {
+    if (boundaries[i] !== 'none') return i + 1;
+  }
+  return limit;
+}
+
+/**
+ * Duração de um bloco: soma das durações de cada palavra. Como o bloco só termina
+ * em pontuação, apenas a última palavra carrega pausa de fronteira.
+ */
+export function calculateChunkDurationMs(
+  tokens: ReadonlyArray<PacingInput>,
+  wpm: number,
+  smartPacingEnabled: boolean,
+  rampFactor = 1,
+): number {
+  let total = 0;
+  for (const token of tokens) {
+    total += calculateTokenDurationMs(token, wpm, smartPacingEnabled, rampFactor);
+  }
+  return Math.round(total * 1000) / 1000;
+}
+
+/**
+ * Destino de "voltar frase/parágrafo": início da unidade atual; se o cursor já está
+ * no começo dela (ou na primeira palavra), volta para o início da unidade anterior.
+ */
+export function findRewindTarget(
+  boundaries: ReadonlyArray<TokenBoundary>,
+  tokenIndex: number,
+  unit: 'sentence' | 'paragraph',
+): number {
+  const stops: ReadonlySet<TokenBoundary> =
+    unit === 'sentence'
+      ? new Set<TokenBoundary>(['sentence', 'paragraph'])
+      : new Set<TokenBoundary>(['paragraph']);
+  const startOf = (index: number): number => {
+    for (let i = index - 1; i >= 0; i--) {
+      if (stops.has(boundaries[i]!)) return i + 1;
+    }
+    return 0;
+  };
+  const current = startOf(Math.min(tokenIndex, boundaries.length));
+  if (tokenIndex - current >= 2) return current;
+  return current === 0 ? 0 : startOf(current - 1);
+}
+
 /**
  * Insere e funde um intervalo [start, end) na lista de cobertura ordenada.
  */

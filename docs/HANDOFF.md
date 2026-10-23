@@ -33,6 +33,12 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 58 OK; `test:e2e` 22 OK (inclui `rsvp-precision.spec.ts`).
 - **Pendente:** avaliação de conforto pelo usuário. Os parâmetros são heurísticos e podem precisar de ajuste com o uso real.
 
+## 1.4 Voltar frase/parágrafo, blocos de 2–3 palavras e estudo de voz (2026-10-23)
+- **Implementado:** R / Shift+R e botões para voltar frase/parágrafo (continua tocando); preferência `rsvpChunkSize` (1–3) com blocos que param na pontuação; destaque do bloco na Leitura Guiada. Ver [ADR-010](decisions/ADR-010-chunks-and-rewind.md).
+- **Estudo:** leitura em voz alta em [docs/research/tts-leitura-em-voz-alta.md](research/tts-leitura-em-voz-alta.md). Recomendação: vozes locais do sistema (grátis/offline), com sincronia por eventos `boundary` já verificada nesta máquina.
+- **Verificação real:** lint e typecheck OK; `test:unit` 64 OK; `test:e2e` 24 OK.
+- **Próximo (ordem combinada):** sumário/capítulos (PDF outline e EPUB TOC); depois o painel de evolução. Modo "Ouvir" aguarda o OK do usuário.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

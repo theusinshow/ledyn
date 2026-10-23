@@ -68,4 +68,37 @@ test.describe('RSVP — precisão de leitura (ORP fixo, parágrafo e retomada)',
     expect(current).toBeGreaterThanOrEqual(11);
     expect(current).toBeLessThan(16);
   });
+
+  test('modo de 3 palavras: mostra blocos que param na pontuação e a escolha persiste após recarregar', async ({
+    page,
+  }) => {
+    await openPastedText(page);
+    await page.getByTestId('rsvp-chunk-size-3').click();
+    await expect(page.getByTestId('rsvp-chunk-size-3')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('rsvp-word-display')).toHaveText('A leitura extraordinariamente');
+
+    const slider = page.getByTestId('rsvp-position-slider');
+    // índice 5 = "de", 6 = "foco," → bloco "de foco," termina na vírgula
+    await slider.fill('5');
+    await expect(page.getByTestId('rsvp-word-display')).toHaveText('de foco,');
+
+    await page.reload();
+    await expect(page.getByTestId('rsvp-chunk-size-3')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('tecla R volta ao início da frase e Shift+R ao início do parágrafo', async ({ page }) => {
+    await openPastedText(page);
+    const slider = page.getByTestId('rsvp-position-slider');
+    await slider.fill('15'); // meio da 2ª frase ("Cada" = índice 10)
+    await page.getByTestId('rsvp-word-display').click();
+    await page.keyboard.press('r');
+    await expect(page.getByTestId('rsvp-cursor-position')).toContainText('Palavra 11 ');
+    await page.keyboard.press('Shift+R');
+    await expect(page.getByTestId('rsvp-cursor-position')).toContainText('Palavra 1 ');
+    // Botões equivalentes
+    await slider.fill('22');
+    await page.getByTestId('rsvp-rewind-sentence-btn').click();
+    await expect(page.getByTestId('rsvp-cursor-position')).toContainText('Palavra 20 ');
+  });
 });
+

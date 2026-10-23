@@ -177,7 +177,8 @@ export type SettingKey =
   | 'defaultWpm'
   | 'punctuationPauseEnabled'
   | 'guidedFontSizePx'
-  | 'reducedMotion';
+  | 'reducedMotion'
+  | 'rsvpChunkSize';
 
 export type SettingRecord<T = unknown> = {
   key: SettingKey;

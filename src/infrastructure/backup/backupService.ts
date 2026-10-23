@@ -579,6 +579,7 @@ const SettingRecordSchema = z.object({
     'punctuationPauseEnabled',
     'guidedFontSizePx',
     'reducedMotion',
+    'rsvpChunkSize',
   ]),
   value: z.unknown(),
   schemaVersion: z.number().int().positive(),

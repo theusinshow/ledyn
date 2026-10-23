@@ -3,7 +3,10 @@ import type { Token, TokenBoundary } from '@/domain/contracts';
 import { VirtualClock } from '@/domain/reading/clock';
 import { ReadingEngine } from '@/domain/reading/engine';
 import {
+  calculateChunkDurationMs,
   calculateTokenDurationMs,
+  findChunkEndIndex,
+  findRewindTarget,
   findSentenceStartIndex,
   wordLengthFactor,
 } from '@/domain/reading/metrics';
@@ -163,6 +166,83 @@ describe('Motor — retomada no início da frase e rampa (ritmo inteligente)', (
       clock.advanceBy(1);
       expect(engine.getSnapshot().cursor.tokenIndex).toBe(i + 1);
     }
+    engine.destroy();
+  });
+});
+
+describe('Blocos de 2–3 palavras e "voltar frase/parágrafo"', () => {
+  it('fecha o bloco no tamanho pedido ou na primeira pontuação', () => {
+    const b: TokenBoundary[] = ['none', 'none', 'none', 'clause', 'none', 'sentence', 'none'];
+    expect(findChunkEndIndex(b, 0, 3)).toBe(3);
+    expect(findChunkEndIndex(b, 2, 3)).toBe(4); // "x y," para na vírgula
+    expect(findChunkEndIndex(b, 4, 3)).toBe(6); // para no fim da frase
+    expect(findChunkEndIndex(b, 6, 3)).toBe(7); // fim do texto
+    expect(findChunkEndIndex(b, 0, 1)).toBe(1);
+    expect(findChunkEndIndex(b, 0, 9)).toBe(3); // limitado a 3
+  });
+
+  it('soma as durações das palavras do bloco, com pausa só da última', () => {
+    const chunk = [
+      { boundary: 'none' as const, text: 'casa' },
+      { boundary: 'clause' as const, text: 'rua,' },
+    ];
+    expect(calculateChunkDurationMs(chunk, 300, true)).toBe(550); // 200 + (200 + 150)
+    expect(calculateChunkDurationMs(chunk, 300, false)).toBe(400);
+  });
+
+  it('volta ao início da frase/parágrafo atual ou ao anterior se já estiver no começo', () => {
+    // 0 1 2. | 3 4 5. ¶ | 6 7 8
+    const b: TokenBoundary[] = ['none', 'none', 'sentence', 'none', 'none', 'paragraph', 'none', 'none', 'none'];
+    expect(findRewindTarget(b, 8, 'sentence')).toBe(6);
+    expect(findRewindTarget(b, 6, 'sentence')).toBe(3); // já no início → frase anterior
+    expect(findRewindTarget(b, 7, 'sentence')).toBe(3); // só 1 palavra lida → frase anterior
+    expect(findRewindTarget(b, 5, 'sentence')).toBe(3);
+    expect(findRewindTarget(b, 8, 'paragraph')).toBe(6);
+    expect(findRewindTarget(b, 6, 'paragraph')).toBe(0);
+    expect(findRewindTarget(b, 1, 'sentence')).toBe(0);
+  });
+
+  it('motor em blocos: avança 3 palavras por apresentação e conta todas como apresentadas', () => {
+    const toks = makeTokens([
+      ['um', 'none'], ['dois', 'none'], ['tres', 'none'], ['quatro', 'none'], ['cinco.', 'sentence'],
+    ]);
+    const clock = new VirtualClock();
+    const engine = new ReadingEngine({
+      clock, contentVersionId: 'v1', tokens: toks, initialWpm: 300,
+      initialPunctuationPauseEnabled: false, initialChunkSize: 3,
+    });
+    expect(engine.getSnapshot().chunkEndIndex).toBe(3);
+    engine.play();
+    clock.advanceBy(600); // 3 × 200 ms
+    let snap = engine.getSnapshot();
+    expect(snap.cursor.tokenIndex).toBe(3);
+    expect(snap.presentedCount).toBe(3);
+    expect(snap.chunkEndIndex).toBe(5);
+    clock.advanceBy(400); // 2 × 200 ms
+    snap = engine.getSnapshot();
+    expect(snap.status).toBe('completed');
+    expect(snap.presentedCount).toBe(5);
+    expect(snap.coverageRanges).toEqual([[0, 5]]);
+    engine.destroy();
+  });
+
+  it('voltar frase durante a reprodução continua tocando a partir do início da frase', () => {
+    const toks = makeTokens([
+      ['Uma', 'none'], ['frase.', 'sentence'], ['Outra', 'none'], ['frase', 'none'], ['aqui', 'none'], ['agora.', 'sentence'],
+    ]);
+    const clock = new VirtualClock();
+    const engine = new ReadingEngine({
+      clock, contentVersionId: 'v1', tokens: toks, initialWpm: 300,
+      initialPunctuationPauseEnabled: false, initialCursorIndex: 4,
+    });
+    engine.play();
+    engine.rewind('sentence');
+    const snap = engine.getSnapshot();
+    expect(snap.status).toBe('playing');
+    expect(snap.cursor.tokenIndex).toBe(2);
+    expect(engine.hasActiveTimer()).toBe(true);
+    clock.advanceBy(200);
+    expect(engine.getSnapshot().cursor.tokenIndex).toBe(3);
     engine.destroy();
   });
 });

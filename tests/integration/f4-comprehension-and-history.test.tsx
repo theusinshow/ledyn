@@ -174,6 +174,8 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         settingsChanges: [],
         lastPauseReason: null,
         resumeRewindTokens: 0,
+        chunkSize: 1,
+        chunkEndIndex: 0, // irrelevante para a persistência da sessão concluída
       },
       sessionStatusOverride: 'completed',
     });
@@ -257,6 +259,8 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         settingsChanges: [],
         lastPauseReason: null,
         resumeRewindTokens: 0,
+        chunkSize: 1,
+        chunkEndIndex: 0, // irrelevante para a persistência da sessão concluída
       },
       sessionStatusOverride: 'completed',
     });
@@ -311,6 +315,8 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         settingsChanges: [],
         lastPauseReason: null,
         resumeRewindTokens: 0,
+        chunkSize: 1,
+        chunkEndIndex: 0, // irrelevante para a persistência da sessão concluída
       },
       sessionStatusOverride: 'completed',
     });
@@ -354,6 +360,8 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         settingsChanges: [],
         lastPauseReason: null,
         resumeRewindTokens: 0,
+        chunkSize: 1,
+        chunkEndIndex: 0, // irrelevante para a persistência da sessão concluída
       },
       sessionStatusOverride: 'completed',
     });

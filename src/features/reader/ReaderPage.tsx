@@ -11,6 +11,7 @@ import {
   Play,
   Plus,
   Rewind,
+  Undo2,
   RotateCcw,
   Zap,
 } from 'lucide-react';
@@ -29,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { ReadingMode } from '@/domain/contracts';
 import { BrowserClock } from '@/domain/reading/clock';
-import { splitWordFocalParts } from '@/domain/reading/focalPoint';
+import { splitPhraseFocalParts } from '@/domain/reading/focalPoint';
 import {
   DEFAULT_WPM,
   MAX_WPM,
@@ -266,6 +267,7 @@ export function ReaderPage() {
           initialWpm,
           initialPunctuationPauseEnabled: initialPunct,
           initialMode,
+          initialChunkSize: currentPrefs.rsvpChunkSize,
           initialActiveMs: resumable ? resumable.activeMs : 0,
           initialPresentedCount: resumable ? resumable.presentedCount : 0,
           initialCoverageRanges: resumable ? resumable.coverageRanges : [],
@@ -533,6 +535,15 @@ export function ReaderPage() {
     }
   };
 
+  const handleChunkSizeChange = (size: number) => {
+    engineRef.current?.setChunkSize(size);
+    void updatePreferences({ rsvpChunkSize: size });
+  };
+
+  const handleRewind = useCallback((unit: 'sentence' | 'paragraph') => {
+    engineRef.current?.rewind(unit);
+  }, []);
+
   const handleTogglePunctuation = () => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -559,6 +570,7 @@ export function ReaderPage() {
       contentVersionId: bundle.content.id,
       tokens: bundle.tokens,
       initialCursorIndex: 0,
+      initialChunkSize: snapshot?.chunkSize ?? preferences.rsvpChunkSize,
       initialWpm: currentWpm,
       initialPunctuationPauseEnabled: currentPunct,
       initialMode: currentMode,
@@ -651,6 +663,9 @@ export function ReaderPage() {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         void handleSeekBy(10);
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        handleRewind(e.shiftKey ? 'paragraph' : 'sentence');
       } else if (e.key === '-') {
         e.preventDefault();
         handleAdjustWpmStep(-1);
@@ -664,7 +679,7 @@ export function ReaderPage() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleTogglePlayPause, handleSeekBy, handleAdjustWpmStep]);
+  }, [handleTogglePlayPause, handleSeekBy, handleAdjustWpmStep, handleRewind]);
 
   if (!documentId) {
     return (
@@ -743,9 +758,12 @@ export function ReaderPage() {
         ? 'Leitura Guiada'
         : 'RSVP';
 
-  const currentWord = snapshot.currentToken?.text ?? '';
-  const focalParts = splitWordFocalParts(currentWord);
-  const wordLength = Array.from(currentWord).length;
+  const displayedText = bundle.tokens
+    .slice(snapshot.cursor.tokenIndex, Math.max(snapshot.chunkEndIndex, snapshot.cursor.tokenIndex + 1))
+    .map((t) => t.text)
+    .join(' ');
+  const focalParts = splitPhraseFocalParts(displayedText);
+  const wordLength = Array.from(displayedText).length;
   const wordSizeClass =
     wordLength > 16
       ? 'text-2xl sm:text-3xl 2xl:text-4xl'
@@ -765,7 +783,10 @@ export function ReaderPage() {
     .map((t) => t.text)
     .join(' ');
   const nextContextTokens = bundle.tokens
-    .slice(snapshot.cursor.tokenIndex + 1, snapshot.cursor.tokenIndex + 5)
+    .slice(
+      Math.max(snapshot.chunkEndIndex, snapshot.cursor.tokenIndex + 1),
+      Math.max(snapshot.chunkEndIndex, snapshot.cursor.tokenIndex + 1) + 4,
+    )
     .map((t) => t.text)
     .join(' ');
 
@@ -1035,7 +1056,7 @@ export function ReaderPage() {
                     data-testid="rsvp-paused-context"
                   >
                     {prevContextTokens && <span>...{prevContextTokens} </span>}
-                    <strong className="text-foreground">{currentWord}</strong>
+                    <strong className="text-foreground">{displayedText}</strong>
                     {nextContextTokens && <span> {nextContextTokens}...</span>}
                   </p>
                 )}
@@ -1046,6 +1067,7 @@ export function ReaderPage() {
                 blocks={bundle.content.blocks}
                 tokens={bundle.tokens}
                 activeTokenIndex={snapshot.cursor.tokenIndex}
+                activeTokenEndIndex={snapshot.chunkEndIndex}
                 isPlaying={isPlaying}
                 fontSizePx={preferences.guidedFontSizePx}
                 reducedMotion={effectiveReducedMotion}
@@ -1059,6 +1081,26 @@ export function ReaderPage() {
 
             <div className="mt-6 flex flex-col items-center gap-4">
               <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleRewind('paragraph')}
+                  aria-label="Voltar ao início do parágrafo (Shift+R)"
+                  title="Voltar ao início do parágrafo (Shift+R)"
+                  data-testid="rsvp-rewind-paragraph-btn"
+                >
+                  <Undo2 className="h-4 w-4" aria-hidden="true" />
+                  Parágrafo
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleRewind('sentence')}
+                  aria-label="Voltar ao início da frase (R)"
+                  title="Voltar ao início da frase (R)"
+                  data-testid="rsvp-rewind-sentence-btn"
+                >
+                  <Undo2 className="h-4 w-4" aria-hidden="true" />
+                  Frase
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => void handleSeekBy(-10)}
@@ -1440,6 +1482,38 @@ export function ReaderPage() {
 
           <div className="flex flex-col gap-2 pt-2 border-t border-border sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
+              <span className="text-sm font-medium">Palavras por vez</span>
+              <p className="text-xs text-muted-foreground">
+                Blocos de 2–3 palavras param sempre na pontuação. A velocidade em PPM continua a mesma.
+              </p>
+            </div>
+            <div
+              role="radiogroup"
+              aria-label="Palavras por vez"
+              className="inline-flex rounded-lg border border-border bg-muted/40 p-1"
+            >
+              {[1, 2, 3].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={snapshot.chunkSize === size}
+                  data-testid={`rsvp-chunk-size-${size}`}
+                  onClick={() => handleChunkSizeChange(size)}
+                  className={`min-h-9 min-w-10 cursor-pointer rounded-md px-3 font-mono text-xs transition-colors ${
+                    snapshot.chunkSize === size
+                      ? 'bg-background text-foreground shadow-xs font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 border-t border-border sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
               <span className="text-sm font-medium">
                 Ritmo inteligente
               </span>
@@ -1461,6 +1535,8 @@ export function ReaderPage() {
           <p className="text-xs text-muted-foreground pt-1">
             Atalhos de teclado: <kbd className="kbd">Espaço</kbd> iniciar/pausar ·{' '}
             <kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> -10/+10 palavras ·{' '}
+            <kbd className="kbd">R</kbd> voltar frase ·{' '}
+            <kbd className="kbd">Shift</kbd>+<kbd className="kbd">R</kbd> voltar parágrafo ·{' '}
             <kbd className="kbd">-</kbd>/<kbd className="kbd">+</kbd> ajustar 25 PPM ·{' '}
             <kbd className="kbd">Esc</kbd> pausar.
           </p>
