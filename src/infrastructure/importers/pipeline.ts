@@ -2,8 +2,6 @@ import type { DocumentFormat, DocumentRecord } from '@/domain/contracts';
 import { tokenizeNormalizedText } from '@/domain/documents/tokenizer';
 import { db, type LedynDatabase } from '@/infrastructure/db/database';
 import type { PreparedDocumentDraft } from '@/infrastructure/db/repositories';
-import { extractEpubFile } from '@/infrastructure/importers/epubImporter';
-import { extractPdfFile } from '@/infrastructure/importers/pdfImporter';
 import { extractTxtFile } from '@/infrastructure/importers/txtImporter';
 import {
   IMPORT_TIMEOUT_MS,
@@ -199,6 +197,8 @@ export async function prepareFileImportDraft(
         onProgress: params.onProgress,
       });
     } else if (format === 'pdf') {
+      // Extratores pesados (PDF.js, epub.js) carregados só quando usados.
+      const { extractPdfFile } = await import('@/infrastructure/importers/pdfImporter');
       extracted = await extractPdfFile(fileBytes, params.fileName, {
         explicitTitle: params.explicitTitle,
         signal: internalController.signal,
@@ -206,6 +206,8 @@ export async function prepareFileImportDraft(
         onProgress: params.onProgress,
       });
     } else {
+      const { extractEpubFile } = await import('@/infrastructure/importers/epubImporter');
+      checkAborted();
       extracted = extractEpubFile(fileBytes, params.fileName, {
         explicitTitle: params.explicitTitle,
         signal: internalController.signal,

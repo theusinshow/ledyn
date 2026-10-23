@@ -13,6 +13,7 @@ import {
   type PreviewSection,
   type RawExtractionOutput,
 } from '@/infrastructure/importers/types';
+import { createPdfWorker } from '@/infrastructure/pdf/pdfWorker';
 import { AppError } from '@/shared/errors';
 
 function stripPdfExtension(fileName: string): string {
@@ -200,16 +201,15 @@ export async function extractPdfFile(
   }
 
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const g = globalThis as Record<string, unknown>;
-  if (!g.pdfjsWorker) {
-    g.pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
-  }
+  // Worker dedicado no navegador: a extração não trava a interface (livros longos).
+  const pdfWorker = await createPdfWorker(pdfjs);
 
   const dataCopy = new Uint8Array(fileBytes.byteLength);
   dataCopy.set(fileBytes);
 
   const loadingTask = pdfjs.getDocument({
     data: dataCopy,
+    worker: pdfWorker.worker,
     disableFontFace: true,
     useSystemFonts: true,
     isEvalSupported: false,
@@ -394,5 +394,6 @@ export async function extractPdfFile(
   } finally {
     options?.signal?.removeEventListener('abort', onAbort);
     await loadingTask.destroy();
+    pdfWorker.dispose();
   }
 }

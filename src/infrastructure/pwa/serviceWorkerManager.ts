@@ -43,18 +43,9 @@ export function registerAppServiceWorker(): void {
     return;
   }
 
-  // Pré-aquece os módulos locais do PDF.js em segundo plano para garantir importação offline imediata (AC-31)
-  if (!('__vitest_environment__' in globalThis)) {
-    void import('pdfjs-dist/legacy/build/pdf.mjs').catch(() => {});
-    void import('pdfjs-dist/legacy/build/pdf.worker.mjs')
-      .then((mod) => {
-        const g = globalThis as Record<string, unknown>;
-        if (!g.pdfjsWorker) {
-          g.pdfjsWorker = mod;
-        }
-      })
-      .catch(() => {});
-  }
+  // PDF.js e seu worker não são pré-carregados aqui: o service worker já guarda todos
+  // os chunks no precache (importação offline, AC-31), e carregá-los na abertura do app
+  // custaria ~1,7 MB de parsing na thread principal sem necessidade.
 
   // Suporte a eventos de simulação controlada de atualização em testes E2E (AC-33)
   window.addEventListener('ledyn:sw-update-waiting', () => {

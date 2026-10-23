@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Link,
@@ -17,12 +17,6 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/application/stores';
 import { Button } from '@/components/ui/button';
-import { HistoryPage } from '@/features/history/HistoryPage';
-import { LibraryPage } from '@/features/library/LibraryPage';
-import { ReaderPage } from '@/features/reader/ReaderPage';
-import { SettingsPage } from '@/features/settings/SettingsPage';
-import { QuizPage } from '@/features/training/QuizPage';
-import { TrainingPage } from '@/features/training/TrainingPage';
 import { ensureDatabaseCompatible } from '@/infrastructure/db/database';
 import {
   applyPendingServiceWorkerUpdate,
@@ -30,6 +24,27 @@ import {
 } from '@/infrastructure/pwa/serviceWorkerManager';
 import { toAppError } from '@/shared/errors';
 import { cn } from '@/shared/utils';
+
+// Telas carregadas por rota: o primeiro carregamento traz só o shell e a tela aberta.
+// Todos os chunks continuam no precache do service worker (funciona offline).
+const LibraryPage = lazy(() =>
+  import('@/features/library/LibraryPage').then((m) => ({ default: m.LibraryPage })),
+);
+const ReaderPage = lazy(() =>
+  import('@/features/reader/ReaderPage').then((m) => ({ default: m.ReaderPage })),
+);
+const TrainingPage = lazy(() =>
+  import('@/features/training/TrainingPage').then((m) => ({ default: m.TrainingPage })),
+);
+const QuizPage = lazy(() =>
+  import('@/features/training/QuizPage').then((m) => ({ default: m.QuizPage })),
+);
+const HistoryPage = lazy(() =>
+  import('@/features/history/HistoryPage').then((m) => ({ default: m.HistoryPage })),
+);
+const SettingsPage = lazy(() =>
+  import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -334,6 +349,7 @@ export function AppContent() {
 
   return (
     <NavigationShell>
+      <Suspense fallback={<div className="py-16 text-center text-xs text-subtle-foreground" role="status">Carregando…</div>}>
       <Routes>
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="/library" element={<LibraryPage />} />
@@ -344,6 +360,7 @@ export function AppContent() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/library" replace />} />
       </Routes>
+      </Suspense>
     </NavigationShell>
   );
 }

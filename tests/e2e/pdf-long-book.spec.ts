@@ -17,10 +17,29 @@ test.describe('PDF longo — livro de 600 páginas', () => {
       buffer: Buffer.from(bytes),
     });
 
+    // Mede a maior pausa entre quadros (interface travada) durante a importação.
+    await page.evaluate(() => {
+      const w = window as unknown as { __maxFrameGap: number; __stopFrames: boolean };
+      w.__maxFrameGap = 0;
+      w.__stopFrames = false;
+      let last = performance.now();
+      const tick = (now: number) => {
+        w.__maxFrameGap = Math.max(w.__maxFrameGap, now - last);
+        last = now;
+        if (!w.__stopFrames) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
     const startedAt = Date.now();
     await page.getByTestId('prepare-file-btn').click();
     await expect(page.getByTestId('import-preview-panel')).toBeVisible({ timeout: 200_000 });
     const extractMs = Date.now() - startedAt;
+    const maxFrameGapMs = await page.evaluate(() => {
+      const w = window as unknown as { __maxFrameGap: number; __stopFrames: boolean };
+      w.__stopFrames = true;
+      return Math.round(w.__maxFrameGap);
+    });
 
     await page.getByTestId('confirm-save-library-btn').click();
     await expect(page.getByTestId('library-items-list')).toBeVisible({ timeout: 60_000 });
@@ -35,6 +54,7 @@ test.describe('PDF longo — livro de 600 páginas', () => {
     await expect(page.getByTestId('pdf-scan-page-label')).toContainText('/ 600');
     const openedMs = Date.now() - startedAt;
 
+    console.log(`[FX-04L] maior travamento da interface durante a importação: ${maxFrameGapMs} ms`);
     console.log(`[FX-04L] extração+prévia ${extractMs} ms · salvo ${savedMs} ms · capa ${coverMs} ms · leitor aberto ${openedMs} ms`);
   });
 });

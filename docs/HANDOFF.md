@@ -54,6 +54,12 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 80 OK; `test:e2e` 30 OK.
 - **Próximo (ordem combinada):** importação de PDF em segundo plano e build mais leve; depois marcadores e busca; depois o modo "Ouvir".
 
+## 1.8 Importação em segundo plano e build mais leve (2026-10-23)
+- **Implementado:** worker dedicado do PDF.js na importação; removido o pré-carregamento do PDF.js na abertura; extratores e telas carregados sob demanda. Ver [ADR-014](decisions/ADR-014-background-import-and-lean-build.md).
+- **Medido:** bloco inicial de 1.124,7 kB para 565,8 kB; uma cópia do worker; `dist` de 4,3 MB para 3,1 MB; maior pausa da interface importando 600 páginas: 70 ms.
+- **Verificação real:** lint e typecheck OK; `test:unit` 80 OK; `test:e2e` 30 OK (inclui importação offline).
+- **Próximo:** marcadores e busca no livro; depois o modo "Ouvir".
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).
