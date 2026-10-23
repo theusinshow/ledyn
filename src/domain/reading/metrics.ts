@@ -19,6 +19,15 @@ export const BOUNDARY_MIN_PAUSE_MS: Record<TokenBoundary, number> = {
   paragraph: 750,
 };
 
+/** Pausas mínimas ajustáveis pelo usuário (ms) por fronteira; `none` é sempre 0. */
+export type MinPauseConfig = Readonly<Record<'clause' | 'sentence' | 'paragraph', number>>;
+
+export const PAUSE_LIMITS_MS = {
+  clause: { min: 0, max: 600, step: 25 },
+  sentence: { min: 0, max: 1500, step: 50 },
+  paragraph: { min: 0, max: 2500, step: 50 },
+} as const;
+
 /** Rampa ao iniciar/retomar: as primeiras exposições ficam mais lentas. */
 export const RESUME_RAMP_FACTORS: readonly number[] = [1.6, 1.4, 1.2, 1.1];
 
@@ -53,6 +62,7 @@ export function calculateTokenDurationMs(
   wpm: number,
   smartPacingEnabled: boolean,
   rampFactor = 1,
+  minPauses: MinPauseConfig = BOUNDARY_MIN_PAUSE_MS,
 ): number {
   const baseDurationMs = 60_000 / wpm;
   if (!smartPacingEnabled) {
@@ -62,7 +72,7 @@ export function calculateTokenDurationMs(
   const wordMs = baseDurationMs * wordLengthFactor(token.text) * rampFactor;
   const pauseMs = Math.max(
     baseDurationMs * (multiplier - 1),
-    BOUNDARY_MIN_PAUSE_MS[token.boundary] ?? 0,
+    token.boundary === 'none' ? 0 : (minPauses[token.boundary] ?? 0),
   );
   // Arredonda a microssegundos para evitar resíduos de ponto flutuante no relógio.
   return Math.round((wordMs + pauseMs) * 1000) / 1000;
@@ -115,10 +125,11 @@ export function calculateChunkDurationMs(
   wpm: number,
   smartPacingEnabled: boolean,
   rampFactor = 1,
+  minPauses: MinPauseConfig = BOUNDARY_MIN_PAUSE_MS,
 ): number {
   let total = 0;
   for (const token of tokens) {
-    total += calculateTokenDurationMs(token, wpm, smartPacingEnabled, rampFactor);
+    total += calculateTokenDurationMs(token, wpm, smartPacingEnabled, rampFactor, minPauses);
   }
   return Math.round(total * 1000) / 1000;
 }

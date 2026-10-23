@@ -178,7 +178,12 @@ export type SettingKey =
   | 'punctuationPauseEnabled'
   | 'guidedFontSizePx'
   | 'reducedMotion'
-  | 'rsvpChunkSize';
+  | 'rsvpChunkSize'
+  | 'pauseClauseMs'
+  | 'pauseSentenceMs'
+  | 'pauseParagraphMs'
+  | 'resumeRewindEnabled'
+  | 'showContextTrail';
 
 export type SettingRecord<T = unknown> = {
   key: SettingKey;

@@ -14,6 +14,7 @@ import {
 import { useAppStore } from '@/application/stores';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PacingFineTuning } from '@/features/settings/PacingFineTuning';
 import {
   Card,
   CardContent,
@@ -505,6 +506,8 @@ export function SettingsPage() {
               {preferences.punctuationPauseEnabled ? 'Ligadas' : 'Desligadas'}
             </Button>
           </div>
+
+          <PacingFineTuning preferences={preferences} onSave={updatePreferences} />
         </CardContent>
       </Card>
 

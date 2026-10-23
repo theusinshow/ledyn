@@ -49,6 +49,11 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 75 OK; `test:e2e` 28 OK.
 - **Próximo:** estudo do modo "Ouvir" (leitura acompanhada por voz), já combinado com o usuário.
 
+## 1.7 Modo foco, trilha de contexto e ajuste fino (2026-10-23)
+- **Implementado:** modo foco em tela cheia (F), com controles que somem durante a leitura; trilha do que acabou de ler abaixo da palavra; ajuste fino das pausas e da volta ao início da frase em Configurações. Ver [ADR-013](decisions/ADR-013-focus-mode-and-fine-tuning.md).
+- **Verificação real:** lint e typecheck OK; `test:unit` 80 OK; `test:e2e` 30 OK.
+- **Próximo (ordem combinada):** importação de PDF em segundo plano e build mais leve; depois marcadores e busca; depois o modo "Ouvir".
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

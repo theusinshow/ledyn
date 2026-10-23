@@ -284,6 +284,11 @@ describe('Fase F3 — Leitura Guiada, Sessões Robustas, Janela de Texto Longo e
       guidedFontSizePx: 26,
       reducedMotion: true,
       rsvpChunkSize: 1,
+      pauseClauseMs: 150,
+      pauseSentenceMs: 500,
+      pauseParagraphMs: 750,
+      resumeRewindEnabled: true,
+      showContextTrail: true,
     });
     expect(window.localStorage.length).toBe(0);
 

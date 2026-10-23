@@ -38,7 +38,11 @@ import {
   MIN_WPM,
   type EngineSnapshot,
 } from '@/domain/reading/engine';
-import { calculateProgressPercent } from '@/domain/reading/metrics';
+import {
+  BOUNDARY_MIN_PAUSE_MS,
+  calculateProgressPercent,
+  PAUSE_LIMITS_MS,
+} from '@/domain/reading/metrics';
 import { db, type LedynDatabase } from '@/infrastructure/db/database';
 import {
   ACTIVE_READING_LEASE_KEY,
@@ -1349,6 +1353,14 @@ export interface UserPreferences {
   reducedMotion: boolean;
   /** Palavras por apresentação no RSVP (1 a 3). */
   rsvpChunkSize: number;
+  /** Pausas mínimas do ritmo inteligente (ms). */
+  pauseClauseMs: number;
+  pauseSentenceMs: number;
+  pauseParagraphMs: number;
+  /** Ao retomar após pausar, voltar ao início da frase. */
+  resumeRewindEnabled: boolean;
+  /** Mostrar a trilha do que acabou de ser lido abaixo da palavra no RSVP. */
+  showContextTrail: boolean;
 }
 
 export interface LoadedPreferencesResult {
@@ -1364,12 +1376,22 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   guidedFontSizePx: DEFAULT_GUIDED_FONT_SIZE_PX,
   reducedMotion: false,
   rsvpChunkSize: 1,
+  pauseClauseMs: BOUNDARY_MIN_PAUSE_MS.clause,
+  pauseSentenceMs: BOUNDARY_MIN_PAUSE_MS.sentence,
+  pauseParagraphMs: BOUNDARY_MIN_PAUSE_MS.paragraph,
+  resumeRewindEnabled: true,
+  showContextTrail: true,
 };
 
 const themeSchema = z.enum(['light', 'dark', 'system']);
 const wpmSchema = z.number().int().min(MIN_WPM).max(MAX_WPM);
 const boolSchema = z.boolean();
 const chunkSizeSchema = z.number().int().min(1).max(3);
+const pauseSchema = (limits: { min: number; max: number }) =>
+  z.number().int().min(limits.min).max(limits.max);
+const pauseClauseSchema = pauseSchema(PAUSE_LIMITS_MS.clause);
+const pauseSentenceSchema = pauseSchema(PAUSE_LIMITS_MS.sentence);
+const pauseParagraphSchema = pauseSchema(PAUSE_LIMITS_MS.paragraph);
 const fontSizeSchema = z
   .number()
   .int()
@@ -1414,6 +1436,12 @@ export async function loadUserPreferencesWithDiagnostics(
       invalidKeys.push('rsvpChunkSize');
     }
 
+    const parseOptional = <T,>(key: SettingKey, schema: z.ZodType<T>, fallback: T): T => {
+      const parsed = schema.safeParse(map.get(key));
+      if (map.has(key) && !parsed.success) invalidKeys.push(key);
+      return parsed.success ? parsed.data : fallback;
+    };
+
     const preferences: UserPreferences = {
       theme: parsedTheme.success
         ? parsedTheme.data
@@ -1433,6 +1461,11 @@ export async function loadUserPreferencesWithDiagnostics(
       rsvpChunkSize: parsedChunk.success
         ? parsedChunk.data
         : DEFAULT_USER_PREFERENCES.rsvpChunkSize,
+      pauseClauseMs: parseOptional('pauseClauseMs', pauseClauseSchema, DEFAULT_USER_PREFERENCES.pauseClauseMs),
+      pauseSentenceMs: parseOptional('pauseSentenceMs', pauseSentenceSchema, DEFAULT_USER_PREFERENCES.pauseSentenceMs),
+      pauseParagraphMs: parseOptional('pauseParagraphMs', pauseParagraphSchema, DEFAULT_USER_PREFERENCES.pauseParagraphMs),
+      resumeRewindEnabled: parseOptional('resumeRewindEnabled', boolSchema, DEFAULT_USER_PREFERENCES.resumeRewindEnabled),
+      showContextTrail: parseOptional('showContextTrail', boolSchema, DEFAULT_USER_PREFERENCES.showContextTrail),
     };
 
     const warningMessage =
@@ -1489,6 +1522,26 @@ export async function saveUserPreferences(
         partial.rsvpChunkSize !== undefined
           ? chunkSizeSchema.parse(partial.rsvpChunkSize)
           : current.rsvpChunkSize,
+      pauseClauseMs:
+        partial.pauseClauseMs !== undefined
+          ? pauseClauseSchema.parse(partial.pauseClauseMs)
+          : current.pauseClauseMs,
+      pauseSentenceMs:
+        partial.pauseSentenceMs !== undefined
+          ? pauseSentenceSchema.parse(partial.pauseSentenceMs)
+          : current.pauseSentenceMs,
+      pauseParagraphMs:
+        partial.pauseParagraphMs !== undefined
+          ? pauseParagraphSchema.parse(partial.pauseParagraphMs)
+          : current.pauseParagraphMs,
+      resumeRewindEnabled:
+        partial.resumeRewindEnabled !== undefined
+          ? boolSchema.parse(partial.resumeRewindEnabled)
+          : current.resumeRewindEnabled,
+      showContextTrail:
+        partial.showContextTrail !== undefined
+          ? boolSchema.parse(partial.showContextTrail)
+          : current.showContextTrail,
     };
 
     await database.transaction('rw', database.settings, async () => {
@@ -1515,6 +1568,11 @@ export async function saveUserPreferences(
           value: merged.rsvpChunkSize,
           schemaVersion: 1,
         },
+        { key: 'pauseClauseMs', value: merged.pauseClauseMs, schemaVersion: 1 },
+        { key: 'pauseSentenceMs', value: merged.pauseSentenceMs, schemaVersion: 1 },
+        { key: 'pauseParagraphMs', value: merged.pauseParagraphMs, schemaVersion: 1 },
+        { key: 'resumeRewindEnabled', value: merged.resumeRewindEnabled, schemaVersion: 1 },
+        { key: 'showContextTrail', value: merged.showContextTrail, schemaVersion: 1 },
       ]);
     });
 

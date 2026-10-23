@@ -18,6 +18,7 @@ import {
   Pause,
   Play,
   Plus,
+  Maximize2,
   Rewind,
   Undo2,
   RotateCcw,
@@ -38,6 +39,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { ReadingMode } from '@/domain/contracts';
 import { BrowserClock } from '@/domain/reading/clock';
+import { buildContextTrail } from '@/domain/reading/contextTrail';
 import { splitPhraseFocalParts } from '@/domain/reading/focalPoint';
 import {
   DEFAULT_WPM,
@@ -46,6 +48,7 @@ import {
   ReadingEngine,
   WPM_STEP,
   type EngineSnapshot,
+  type PacingSettings,
 } from '@/domain/reading/engine';
 import {
   calculateProgressPercent,
@@ -61,7 +64,9 @@ import {
 } from '@/domain/documents/chapters';
 import { buildPdfPageIndex } from '@/domain/documents/pdfLocator';
 import { ChapterPanel } from '@/features/reader/ChapterPanel';
+import { FocusModeOverlay } from '@/features/reader/FocusModeOverlay';
 import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
+import { RsvpStage } from '@/features/reader/RsvpStage';
 import { usePdfRenderer } from '@/features/reader/usePdfRenderer';
 import { ReadingLeaseManager } from '@/infrastructure/db/leaseManager';
 
@@ -77,6 +82,7 @@ import {
   saveSessionReflection,
   startOrResumeQuizAttempt,
   type ReaderDocumentBundle,
+  type UserPreferences,
 } from '@/infrastructure/db/repositories';
 import { registerBeforeSwUpdateHandler } from '@/infrastructure/pwa/serviceWorkerManager';
 import { toAppError } from '@/shared/errors';
@@ -85,6 +91,17 @@ import { createId, formatDurationPtBr } from '@/shared/utils';
 const CHECKPOINT_INTERVAL_MS = 1_800; // <= 2 segundos conforme RF-05
 
 type SaveIndicatorState = 'idle' | 'saving' | 'saved' | 'error';
+
+function pacingFromPreferences(prefs: UserPreferences): Partial<PacingSettings> {
+  return {
+    minPauses: {
+      clause: prefs.pauseClauseMs,
+      sentence: prefs.pauseSentenceMs,
+      paragraph: prefs.pauseParagraphMs,
+    },
+    rewindOnResume: prefs.resumeRewindEnabled,
+  };
+}
 
 
 export function ReaderPage() {
@@ -145,6 +162,14 @@ export function ReaderPage() {
 
   const effectiveReducedMotion =
     preferences.reducedMotion || systemReducedMotion;
+
+  const [focusMode, setFocusMode] = useState(false);
+  const handleExitFocus = useCallback(() => setFocusMode(false), []);
+
+  // Ajuste fino do ritmo vale na próxima palavra, sem recriar o motor.
+  useEffect(() => {
+    engineRef.current?.setPacing(pacingFromPreferences(preferences));
+  }, [preferences]);
 
   // PDF original aberto uma vez e compartilhado entre o mapa e o sumário.
   const isPdfDocument = bundle?.document.format === 'pdf';
@@ -342,6 +367,7 @@ export function ReaderPage() {
           initialPunctuationPauseEnabled: initialPunct,
           initialMode,
           initialChunkSize: currentPrefs.rsvpChunkSize,
+          initialPacing: pacingFromPreferences(currentPrefs),
           initialActiveMs: resumable ? resumable.activeMs : 0,
           initialPresentedCount: resumable ? resumable.presentedCount : 0,
           initialCoverageRanges: resumable ? resumable.coverageRanges : [],
@@ -645,6 +671,7 @@ export function ReaderPage() {
       tokens: bundle.tokens,
       initialCursorIndex: 0,
       initialChunkSize: snapshot?.chunkSize ?? preferences.rsvpChunkSize,
+      initialPacing: pacingFromPreferences(preferences),
       initialWpm: currentWpm,
       initialPunctuationPauseEnabled: currentPunct,
       initialMode: currentMode,
@@ -737,6 +764,11 @@ export function ReaderPage() {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         void handleSeekBy(10);
+      } else if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (engineRef.current?.getSnapshot().mode === 'rsvp') {
+          setFocusMode((v) => !v);
+        }
       } else if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
         handleRewind(e.shiftKey ? 'paragraph' : 'sentence');
@@ -847,13 +879,9 @@ export function ReaderPage() {
     .map((t) => t.text)
     .join(' ');
   const focalParts = splitPhraseFocalParts(displayedText);
-  const wordLength = Array.from(displayedText).length;
-  const wordSizeClass =
-    wordLength > 16
-      ? 'text-2xl sm:text-3xl 2xl:text-4xl'
-      : wordLength > 10
-        ? 'text-3xl sm:text-5xl 2xl:text-6xl'
-        : 'text-4xl sm:text-6xl 2xl:text-7xl';
+  const contextTrail = preferences.showContextTrail
+    ? buildContextTrail(bundle.tokens, snapshot.cursor.tokenIndex)
+    : '';
   const currentTokenIndex = snapshot.cursor.tokenIndex;
   const isParagraphStart =
     currentTokenIndex > 0 &&
@@ -913,6 +941,18 @@ export function ReaderPage() {
 
         {/* Alternador de Modo (RSVP / Guiada) + Indicador Honesto de Persistência */}
         <div className="flex flex-wrap items-center gap-3">
+          {!isCompleted && !isGuidedMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFocusMode(true)}
+              data-testid="focus-mode-btn"
+              title="Modo foco em tela cheia (F)"
+            >
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Foco
+            </Button>
+          )}
           {!isCompleted && (
             <div
               role="group"
@@ -1088,71 +1128,16 @@ export function ReaderPage() {
         <Card className="overflow-hidden">
           <CardContent className="p-6 sm:p-10">
             {!isGuidedMode ? (
-              <div className="relative flex min-h-[13.75rem] select-none flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-sunken px-4 py-8 sm:min-h-[16.25rem] 2xl:min-h-[22rem]">
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]"
-                />
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-transparent via-border-strong to-transparent"
-                />
-                <div
-                  className="relative h-4 w-px bg-primary/70 mb-4"
-                  aria-hidden="true"
-                />
-
-                {isParagraphStart && (
-                  <span
-                    data-testid="rsvp-paragraph-cue"
-                    className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[0.6875rem] text-primary"
-                  >
-                    <span aria-hidden="true">¶</span>
-                    Novo parágrafo
-                  </span>
-                )}
-
-                {isPlaying && snapshot.resumeRewindTokens > 0 && (
-                  <span
-                    key={snapshot.modeSegments.length}
-                    data-testid="rsvp-resume-rewind-hint"
-                    className="absolute right-4 top-4 font-mono text-[0.6875rem] text-muted-foreground animate-fade-out-late"
-                  >
-                    ↺ retomado do início da frase
-                  </span>
-                )}
-
-                {/* Letra de foco (ORP) travada no centro: prefixo alinhado à direita, sufixo à esquerda. */}
-                <div
-                  data-testid="rsvp-word-display"
-                  className={`relative grid w-full grid-cols-[1fr_auto_1fr] items-baseline whitespace-nowrap font-medium tracking-[-0.025em] leading-tight ${wordSizeClass}`}
-                >
-                  <span className="text-right">{focalParts.prefix}</span>
-                  <span
-                    data-testid="rsvp-focal-letter"
-                    className="text-primary [text-shadow:0_0_24px_color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                  >
-                    {focalParts.pivot}
-                  </span>
-                  <span className="text-left">{focalParts.suffix}</span>
-                </div>
-
-                <div
-                  className="relative h-4 w-px bg-primary/70 mt-4"
-                  aria-hidden="true"
-                />
-
-                {!isPlaying && (
-                  <p
-                    className="relative mt-5 text-xs text-muted-foreground text-center max-w-md line-clamp-2"
-                    data-testid="rsvp-paused-context"
-                  >
-                    {prevContextTokens && <span>...{prevContextTokens} </span>}
-                    <strong className="text-foreground">{displayedText}</strong>
-                    {nextContextTokens && <span> {nextContextTokens}...</span>}
-                  </p>
-                )}
-              </div>
+              <RsvpStage
+                focalParts={focalParts}
+                displayedText={displayedText}
+                isPlaying={isPlaying}
+                isParagraphStart={isParagraphStart}
+                resumeRewindTokens={snapshot.resumeRewindTokens}
+                rewindKey={snapshot.modeSegments.length}
+                contextTrail={contextTrail}
+                pausedContext={{ before: prevContextTokens, after: nextContextTokens }}
+              />
             ) : (
               <GuidedReadingView
                 normalizedText={bundle.content.normalizedText}
@@ -1668,6 +1653,28 @@ export function ReaderPage() {
         </aside>
       )}
       </div>
+
+      {focusMode && !isGuidedMode && !isCompleted && (
+        <FocusModeOverlay
+          stage={{
+            focalParts,
+            displayedText,
+            isPlaying,
+            isParagraphStart,
+            resumeRewindTokens: snapshot.resumeRewindTokens,
+            rewindKey: snapshot.modeSegments.length,
+            contextTrail,
+            pausedContext: { before: prevContextTokens, after: nextContextTokens },
+          }}
+          isPlaying={isPlaying}
+          wpm={snapshot.wpm}
+          progressPercent={progressPercent}
+          locationLabel={currentChapter ? `${bundle.document.title} / ${currentChapter.title}` : bundle.document.title}
+          onTogglePlay={() => void handleTogglePlayPause()}
+          onRewindSentence={() => handleRewind('sentence')}
+          onExit={handleExitFocus}
+        />
+      )}
     </div>
   );
 }

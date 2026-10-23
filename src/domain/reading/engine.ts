@@ -15,8 +15,10 @@ import {
   findSentenceStartIndex,
   MAX_CHUNK_SIZE,
   mergeCoverageRange,
+  BOUNDARY_MIN_PAUSE_MS,
   MIN_CHUNK_SIZE,
   RESUME_RAMP_FACTORS,
+  type MinPauseConfig,
 } from '@/domain/reading/metrics';
 import { AppError } from '@/shared/errors';
 
@@ -81,6 +83,8 @@ export interface ReadingEngineOptions {
   initialModeSegments?: ModeSegment[];
   initialSettingsChanges?: SpeedChangeEntry[];
   initialChunkSize?: number;
+  /** Pausas mínimas ajustadas pelo usuário e volta ao início da frase ao retomar. */
+  initialPacing?: Partial<PacingSettings>;
   onStateChange?: (snapshot: EngineSnapshot) => void;
   onTokenPresented?: (snapshot: EngineSnapshot) => void;
   onTransitionCheckpoint?: (
@@ -88,6 +92,16 @@ export interface ReadingEngineOptions {
     reason: 'pause' | 'seek' | 'mode_change' | 'completed' | 'system_suspension',
   ) => void;
 }
+
+export interface PacingSettings {
+  minPauses: MinPauseConfig;
+  rewindOnResume: boolean;
+}
+
+export const DEFAULT_PACING_SETTINGS: PacingSettings = {
+  minPauses: BOUNDARY_MIN_PAUSE_MS,
+  rewindOnResume: true,
+};
 
 export function validateWpm(wpm: number): number {
   if (!Number.isFinite(wpm) || wpm < MIN_WPM || wpm > MAX_WPM) {
@@ -132,6 +146,7 @@ export class ReadingEngine {
   private lastPauseReason: PauseReason | null = null;
   private resumeRewindTokens = 0;
   private chunkSize: number;
+  private pacing: PacingSettings;
   private boundaries: TokenBoundary[];
   private currentChunkLength = 1;
   private rampStep = RESUME_RAMP_FACTORS.length;
@@ -163,6 +178,7 @@ export class ReadingEngine {
     this.punctuationPauseEnabled = options.initialPunctuationPauseEnabled ?? true;
     this.mode = options.initialMode ?? 'rsvp';
     this.chunkSize = clampChunkSize(options.initialChunkSize ?? 1);
+    this.pacing = { ...DEFAULT_PACING_SETTINGS, ...options.initialPacing };
     this.boundaries = this.tokens.map((t) => t.boundary);
 
     this.activeMs = Math.max(0, options.initialActiveMs ?? 0);
@@ -246,6 +262,7 @@ export class ReadingEngine {
     this.resumeRewindTokens = 0;
     if (
       this.punctuationPauseEnabled &&
+      this.pacing.rewindOnResume &&
       this.lastPauseReason !== null &&
       REWIND_ON_RESUME_REASONS.has(this.lastPauseReason)
     ) {
@@ -330,6 +347,11 @@ export class ReadingEngine {
       changedAt: new Date().toISOString(),
     });
     this.emitStateChange();
+  }
+
+  /** Ajuste fino do ritmo inteligente; vale a partir da próxima exposição. */
+  setPacing(next: Partial<PacingSettings>): void {
+    this.pacing = { ...this.pacing, ...next };
   }
 
   /** Palavras por apresentação (1–3); vale a partir da próxima exposição. */
@@ -464,6 +486,7 @@ export class ReadingEngine {
       this.wpm,
       this.punctuationPauseEnabled,
       rampFactor,
+      this.pacing.minPauses,
     );
 
     const expectedGen = ++this.generationId;
