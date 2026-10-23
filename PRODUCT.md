@@ -83,7 +83,14 @@ RSVP apresenta tokens em uma posição estável, preservando acentos e pontuaç�
 
 **Aceite:** a 300 PPM, sem pausas extras, cada token tem duração-base de 200 ms no relógio controlado de teste; 100 tokens correspondem a 20 s de exposição ideal. Pausar não avança; recomeçar não cria dois temporizadores. Alteração de velocidade entra na próxima apresentação. Ocultar a página pausa e exige retomada manual.
 
-Pontuação ligada por padrão: multiplicador 1,5 para vírgula, ponto e vírgula e dois-pontos; 2 para final de frase; 2,5 para fim de parágrafo. Aplicar apenas o maior multiplicador, sem somar. Siglas e decimais usam regra conservadora versionada, com exemplos de teste. Não vender o resultado como segmentação linguística perfeita.
+Ritmo inteligente ligado por padrão (revisado em 23/10/2026, ADR-009):
+- **Pausa na pontuação:** a pausa somada após a palavra é o maior valor entre `base × (multiplicador − 1)` e um mínimo absoluto. Multiplicadores: 1,5 para vírgula, ponto e vírgula e dois-pontos; 2 para final de frase; 2,5 para fim de parágrafo. Mínimos: 150 ms, 500 ms e 750 ms, respectivamente. Vale apenas a fronteira mais forte do token, sem somar.
+- **Palavras longas e números:** +15% de tempo com 8 a 11 letras; +30% com 12 ou mais letras ou com dígitos.
+- **Entrada gradual:** as quatro primeiras palavras após iniciar duram 1,6× / 1,4× / 1,2× / 1,1×.
+- **Retomada:** depois de uma pausa da sessão (manual, aba oculta, suspensão, conflito de aba ou falha de gravação), a leitura recomeça no início da frase, com recuo máximo de 25 palavras. Seek explícito e retomada após recarga continuam no token salvo.
+- **Ritmo inteligente desligado:** volta a exatamente `60.000 / PPM` por token.
+
+A letra de foco (ORP), um pouco à esquerda do centro, fica numa coluna fixa da tela. A primeira palavra de um parágrafo novo recebe um sinal visual. Siglas e decimais usam regra conservadora versionada, com exemplos de teste. Não vender o resultado como segmentação linguística perfeita nem como ganho de compreensão comprovado.
 
 ### RF-04 — Leitura guiada
 

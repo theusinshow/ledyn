@@ -173,6 +173,7 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         ],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });
@@ -255,6 +256,7 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         modeSegments: [],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });
@@ -308,6 +310,7 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         modeSegments: [],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });
@@ -350,6 +353,7 @@ describe('F4 Integration — Catálogo de Treino, Quiz, Reflexão e Histórico (
         modeSegments: [],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });

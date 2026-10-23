@@ -484,10 +484,10 @@ export function SettingsPage() {
           <div className="flex items-center justify-between pt-3 border-t border-border">
             <div>
               <p className="text-sm font-medium">
-                Pausas de pontuação por padrão
+                Ritmo inteligente por padrão
               </p>
               <p className="text-xs text-muted-foreground">
-                Multiplicadores: 1,5x cláusula · 2x frase · 2,5x parágrafo.
+                Pausas mínimas na pontuação, tempo extra em palavras longas, entrada gradual e retomada do início da frase.
               </p>
             </div>
             <Button

@@ -101,7 +101,7 @@ Mudar de 250 para 300 PPM durante reprodução aplica o novo valor à próxima e
 
 ### AC-10 — Pausas de pontuação (RF-03)
 
-Em FX-02, testar clause/sentence/paragraph com fatores 1,5/2/2,5; prevalece o maior. Desligar pausas usa fator 1. Abreviações e decimais têm comportamento documentado, offsets preservados e nenhum token vazio.
+Em FX-02, testar clause/sentence/paragraph: pausa = maior entre base × (1,5/2/2,5 − 1) e os mínimos 150/500/750 ms; prevalece a fronteira mais forte. Testar o fator de comprimento (1,15/1,3), a rampa (1,6/1,4/1,2/1,1), a retomada no início da frase só após pausa da sessão e a letra de foco em coluna fixa (ADR-009). Desligar o ritmo inteligente usa fator 1, sem rampa nem recuo. Abreviações e decimais têm comportamento documentado, offsets preservados e nenhum token vazio.
 
 **Verificação:** unitários de classificação e duração, com fixtures explícitas. Aceitar heurística documentada; não afirmar análise linguística universal.
 

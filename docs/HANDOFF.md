@@ -27,6 +27,12 @@
 - **Verificação real:** lint, typecheck, `test:unit` com 47 testes e `test:e2e` com 19 testes, todos OK. Inclui `pdf-long-book.spec.ts`: PDF sintético de 600 páginas / 181.200 tokens, importado e aberto em ~1,2 s no Chrome desktop.
 - **Pendente:** importar o livro real do usuário (se passar de 40 MiB, será recusado pelo limite atual) e validar memória/tempo no celular.
 
+## 1.3 Ritmo inteligente e letra de foco fixa (2026-10-23)
+- **Pedido do usuário:** pesquisar como o RSVP deve funcionar e corrigir a sensação de se perder em vírgulas e parágrafos.
+- **Implementado:** letra de foco em coluna fixa; pausas com mínimo absoluto; tempo extra para palavras longas e números; rampa ao iniciar; retomada no início da frase após pausa da sessão; sinal de parágrafo. Ver [ADR-009](decisions/ADR-009-smart-pacing-and-fixed-orp.md); RF-03 e AC-10 atualizados.
+- **Verificação real:** lint e typecheck OK; `test:unit` 58 OK; `test:e2e` 22 OK (inclui `rsvp-precision.spec.ts`).
+- **Pendente:** avaliação de conforto pelo usuário. Os parâmetros são heurísticos e podem precisar de ajuste com o uso real.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

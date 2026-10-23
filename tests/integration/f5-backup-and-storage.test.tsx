@@ -103,6 +103,7 @@ describe('F5 Integration — Backup Completo ZIP Round-Trip, Validação FX-11 e
         ],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });
@@ -170,6 +171,7 @@ describe('F5 Integration — Backup Completo ZIP Round-Trip, Validação FX-11 e
         modeSegments: [],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });
@@ -210,6 +212,7 @@ describe('F5 Integration — Backup Completo ZIP Round-Trip, Validação FX-11 e
         modeSegments: [],
         settingsChanges: [],
         lastPauseReason: null,
+        resumeRewindTokens: 0,
       },
       sessionStatusOverride: 'completed',
     });

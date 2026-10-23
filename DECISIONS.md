@@ -39,6 +39,7 @@ As escolhas abaixo tornam a implementação executável, mas não são apresenta
 | P05 | Guiado sobre texto normalizado, com destaque por palavra. | Compartilha cursor e evita prometer fidelidade editorial. |
 | P06 | Três treinos originais, quatro perguntas cada; reflexão sem nota nos imports. | Compreensão objetiva sem IA ou necessidade de perguntas para todo arquivo. |
 | P07 | Limites de 40 MiB por arquivo, 1.000 páginas PDF, 3.000.000 de unidades UTF-16, 500.000 tokens e timeout de 180 s. | Conter custo no celular; atualizado para 40 MiB e, em 23/10/2026, para livros de 600+ páginas conforme pedido do usuário (ADR-008). |
+| P07b | Ritmo inteligente: pausas com mínimo absoluto (150/500/750 ms), tempo extra para palavras longas e números, rampa ao iniciar, retomada no início da frase e letra de foco em coluna fixa. | Pedido do usuário em 23/10/2026 ("me perco em vírgulas e parágrafos"); base em pesquisa sobre RSVP (ADR-009). |
 | P08 | Backup completo ZIP com originais e snapshots. | Local-first precisa de saída e recuperação reais. |
 | P09 | Restauração apenas em biblioteca sem dados pessoais. | Evita um algoritmo de merge antes do MVP. |
 | P10 | Um leitor ativo por origem, checkpoints de até 2 s. | Evita sobrescrita entre abas e define recuperação possível. |

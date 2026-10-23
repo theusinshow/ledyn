@@ -89,16 +89,21 @@ describe('Normalização e Tokenização Versionada (FX-01 / FX-02 / AC-01 / AC-
     expect(classifyTokenBoundary('segundos,', false)).toBe('clause');
     expect(classifyTokenBoundary('leitura', false)).toBe('none');
 
-    // A 300 PPM, duração-base é 200 ms
-    expect(calculateTokenDurationMs('none', 300, true)).toBe(200);
-    expect(calculateTokenDurationMs('clause', 300, true)).toBe(300); // 1.5x
-    expect(calculateTokenDurationMs('sentence', 300, true)).toBe(400); // 2.0x
-    expect(calculateTokenDurationMs('paragraph', 300, true)).toBe(500); // 2.5x
+    // A 300 PPM, duração-base é 200 ms. Ritmo inteligente: palavra + maior entre
+    // base × (multiplicador − 1) e a pausa mínima da fronteira (150/500/750 ms).
+    const w = (boundary: 'none' | 'clause' | 'sentence' | 'paragraph') => ({
+      boundary,
+      text: 'casa',
+    });
+    expect(calculateTokenDurationMs(w('none'), 300, true)).toBe(200);
+    expect(calculateTokenDurationMs(w('clause'), 300, true)).toBe(350); // 200 + 150 mín.
+    expect(calculateTokenDurationMs(w('sentence'), 300, true)).toBe(700); // 200 + 500 mín.
+    expect(calculateTokenDurationMs(w('paragraph'), 300, true)).toBe(950); // 200 + 750 mín.
 
-    // Quando pontuação está desligada, todos usam fator 1.0 (200 ms)
-    expect(calculateTokenDurationMs('clause', 300, false)).toBe(200);
-    expect(calculateTokenDurationMs('sentence', 300, false)).toBe(200);
-    expect(calculateTokenDurationMs('paragraph', 300, false)).toBe(200);
+    // Ritmo inteligente desligado: fator 1.0 para tudo (200 ms)
+    expect(calculateTokenDurationMs(w('clause'), 300, false)).toBe(200);
+    expect(calculateTokenDurationMs(w('sentence'), 300, false)).toBe(200);
+    expect(calculateTokenDurationMs(w('paragraph'), 300, false)).toBe(200);
   });
 
   it('rejeita texto vazio, apenas espaços ou apenas símbolos sem letras/números', () => {

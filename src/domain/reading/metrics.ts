@@ -8,21 +8,81 @@ export const BOUNDARY_MULTIPLIERS: Record<TokenBoundary, number> = {
 };
 
 /**
+ * Pausa mínima absoluta (ms) somada após a palavra em cada fronteira.
+ * Evita que a pausa de pontuação encolha em velocidades altas: a pesquisa com RSVP
+ * (Masson, 1983) mostrou compreensão equivalente à página com ~500 ms no fim da frase.
+ */
+export const BOUNDARY_MIN_PAUSE_MS: Record<TokenBoundary, number> = {
+  none: 0,
+  clause: 150,
+  sentence: 500,
+  paragraph: 750,
+};
+
+/** Rampa ao iniciar/retomar: as primeiras exposições ficam mais lentas. */
+export const RESUME_RAMP_FACTORS: readonly number[] = [1.6, 1.4, 1.2, 1.1];
+
+/**
+ * Fator de tempo por comprimento da palavra (letras/dígitos, sem pontuação).
+ * Palavras longas e números recebem mais tempo de reconhecimento.
+ */
+export function wordLengthFactor(text: string): number {
+  const core = Array.from(text).filter((c) => /[\p{L}\p{N}]/u.test(c));
+  if (core.some((c) => /\p{N}/u.test(c))) return 1.3;
+  if (core.length >= 12) return 1.3;
+  if (core.length >= 8) return 1.15;
+  return 1.0;
+}
+
+export interface PacingInput {
+  boundary: TokenBoundary;
+  text: string;
+}
+
+/**
  * Calcula a duração de apresentação de um token em milissegundos.
- * Duração-base = 60.000 / PPM.
- * Aplica apenas o maior multiplicador correspondente ao boundary, sem somar.
+ *
+ * - Ritmo inteligente desligado: exatamente 60.000 / PPM (relógio determinístico do AC-06).
+ * - Ritmo inteligente ligado:
+ *   palavra = base × fator de comprimento × fator de rampa;
+ *   pausa   = maior entre base × (multiplicador − 1) e a pausa mínima da fronteira.
+ *   Multiplicadores não se somam: vale apenas a fronteira mais forte do token.
  */
 export function calculateTokenDurationMs(
-  boundary: TokenBoundary,
+  token: PacingInput,
   wpm: number,
-  punctuationPauseEnabled: boolean,
+  smartPacingEnabled: boolean,
+  rampFactor = 1,
 ): number {
   const baseDurationMs = 60_000 / wpm;
-  if (!punctuationPauseEnabled) {
+  if (!smartPacingEnabled) {
     return baseDurationMs;
   }
-  const multiplier = BOUNDARY_MULTIPLIERS[boundary] ?? 1.0;
-  return baseDurationMs * multiplier;
+  const multiplier = BOUNDARY_MULTIPLIERS[token.boundary] ?? 1.0;
+  const wordMs = baseDurationMs * wordLengthFactor(token.text) * rampFactor;
+  const pauseMs = Math.max(
+    baseDurationMs * (multiplier - 1),
+    BOUNDARY_MIN_PAUSE_MS[token.boundary] ?? 0,
+  );
+  // Arredonda a microssegundos para evitar resíduos de ponto flutuante no relógio.
+  return Math.round((wordMs + pauseMs) * 1000) / 1000;
+}
+
+/**
+ * Índice do primeiro token da frase que contém `tokenIndex`
+ * (logo após o último fim de frase/parágrafo), limitado a `maxBack` tokens de recuo.
+ */
+export function findSentenceStartIndex(
+  boundaries: ReadonlyArray<TokenBoundary>,
+  tokenIndex: number,
+  maxBack = 25,
+): number {
+  const limit = Math.max(0, tokenIndex - maxBack);
+  for (let i = tokenIndex - 1; i >= limit; i--) {
+    const b = boundaries[i];
+    if (b === 'sentence' || b === 'paragraph') return i + 1;
+  }
+  return limit;
 }
 
 /**

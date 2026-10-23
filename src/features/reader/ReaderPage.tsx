@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { ReadingMode } from '@/domain/contracts';
 import { BrowserClock } from '@/domain/reading/clock';
+import { splitWordFocalParts } from '@/domain/reading/focalPoint';
 import {
   DEFAULT_WPM,
   MAX_WPM,
@@ -66,32 +67,6 @@ const CHECKPOINT_INTERVAL_MS = 1_800; // <= 2 segundos conforme RF-05
 
 type SaveIndicatorState = 'idle' | 'saving' | 'saved' | 'error';
 
-function splitWordFocalParts(word: string): {
-  prefix: string;
-  pivot: string;
-  suffix: string;
-} {
-  if (!word) {
-    return { prefix: '', pivot: '', suffix: '' };
-  }
-  const chars = Array.from(word);
-  const len = chars.length;
-  const pivotIndex =
-    len <= 1
-      ? 0
-      : len <= 5
-        ? 1
-        : len <= 9
-          ? 2
-          : len <= 13
-            ? 3
-            : 4;
-  return {
-    prefix: chars.slice(0, pivotIndex).join(''),
-    pivot: chars[pivotIndex] ?? '',
-    suffix: chars.slice(pivotIndex + 1).join(''),
-  };
-}
 
 export function ReaderPage() {
   const { documentId } = useParams<{ documentId: string }>();
@@ -770,7 +745,17 @@ export function ReaderPage() {
 
   const currentWord = snapshot.currentToken?.text ?? '';
   const focalParts = splitWordFocalParts(currentWord);
-  const isLongWord = Array.from(currentWord).length > 16;
+  const wordLength = Array.from(currentWord).length;
+  const wordSizeClass =
+    wordLength > 16
+      ? 'text-2xl sm:text-3xl 2xl:text-4xl'
+      : wordLength > 10
+        ? 'text-3xl sm:text-5xl 2xl:text-6xl'
+        : 'text-4xl sm:text-6xl 2xl:text-7xl';
+  const currentTokenIndex = snapshot.cursor.tokenIndex;
+  const isParagraphStart =
+    currentTokenIndex > 0 &&
+    bundle.tokens[currentTokenIndex - 1]?.boundary === 'paragraph';
 
   const prevContextTokens = bundle.tokens
     .slice(
@@ -1004,19 +989,39 @@ export function ReaderPage() {
                   aria-hidden="true"
                 />
 
+                {isParagraphStart && (
+                  <span
+                    data-testid="rsvp-paragraph-cue"
+                    className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-mono text-[0.6875rem] text-primary"
+                  >
+                    <span aria-hidden="true">¶</span>
+                    Novo parágrafo
+                  </span>
+                )}
+
+                {isPlaying && snapshot.resumeRewindTokens > 0 && (
+                  <span
+                    key={snapshot.modeSegments.length}
+                    data-testid="rsvp-resume-rewind-hint"
+                    className="absolute right-4 top-4 font-mono text-[0.6875rem] text-muted-foreground animate-fade-out-late"
+                  >
+                    ↺ retomado do início da frase
+                  </span>
+                )}
+
+                {/* Letra de foco (ORP) travada no centro: prefixo alinhado à direita, sufixo à esquerda. */}
                 <div
                   data-testid="rsvp-word-display"
-                  className={`relative w-full text-center font-medium tracking-[-0.025em] break-words leading-tight ${
-                    isLongWord
-                      ? 'text-3xl sm:text-4xl 2xl:text-5xl'
-                      : 'text-4xl sm:text-6xl 2xl:text-7xl'
-                  }`}
+                  className={`relative grid w-full grid-cols-[1fr_auto_1fr] items-baseline whitespace-nowrap font-medium tracking-[-0.025em] leading-tight ${wordSizeClass}`}
                 >
-                  <span>{focalParts.prefix}</span>
-                  <span className="text-primary [text-shadow:0_0_24px_color-mix(in_srgb,var(--primary)_45%,transparent)]">
+                  <span className="text-right">{focalParts.prefix}</span>
+                  <span
+                    data-testid="rsvp-focal-letter"
+                    className="text-primary [text-shadow:0_0_24px_color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                  >
                     {focalParts.pivot}
                   </span>
-                  <span>{focalParts.suffix}</span>
+                  <span className="text-left">{focalParts.suffix}</span>
                 </div>
 
                 <div
@@ -1436,10 +1441,10 @@ export function ReaderPage() {
           <div className="flex flex-col gap-2 pt-2 border-t border-border sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <span className="text-sm font-medium">
-                Pausas inteligentes de pontuação
+                Ritmo inteligente
               </span>
               <p className="text-xs text-muted-foreground">
-                Multiplicadores: 1,5x vírgula/;/: · 2x fim de frase · 2,5x fim de parágrafo (prevalece o maior).
+                Pausas com mínimo fixo (vírgula ≥ 150 ms · fim de frase ≥ 500 ms · parágrafo ≥ 750 ms), mais tempo em palavras longas e números, entrada gradual ao iniciar e retomada do início da frase após pausar.
               </p>
             </div>
             <Button

@@ -9,7 +9,9 @@ import type {
 import type { Clock } from '@/domain/reading/clock';
 import {
   calculateTokenDurationMs,
+  findSentenceStartIndex,
   mergeCoverageRange,
+  RESUME_RAMP_FACTORS,
 } from '@/domain/reading/metrics';
 import { AppError } from '@/shared/errors';
 
@@ -29,6 +31,15 @@ export type PauseReason =
   | 'lease_lost'
   | 'storage_error';
 
+/** Pausas da sessão atual após as quais a retomada volta ao início da frase. */
+const REWIND_ON_RESUME_REASONS: ReadonlySet<PauseReason> = new Set<PauseReason>([
+  'manual',
+  'visibility_hidden',
+  'system_suspension',
+  'lease_lost',
+  'storage_error',
+]);
+
 export interface EngineSnapshot {
   status: EngineStatus;
   mode: ReadingMode;
@@ -43,6 +54,8 @@ export interface EngineSnapshot {
   modeSegments: ModeSegment[];
   settingsChanges: SpeedChangeEntry[];
   lastPauseReason: PauseReason | null;
+  /** Quantos tokens a última retomada recuou para o início da frase (0 = não recuou). */
+  resumeRewindTokens: number;
 }
 
 export interface ReadingEngineOptions {
@@ -102,6 +115,8 @@ export class ReadingEngine {
   private modeSegments: ModeSegment[];
   private settingsChanges: SpeedChangeEntry[];
   private lastPauseReason: PauseReason | null = null;
+  private resumeRewindTokens = 0;
+  private rampStep = RESUME_RAMP_FACTORS.length;
 
   private activeTimerId: number | null = null;
   private generationId = 0;
@@ -177,6 +192,7 @@ export class ReadingEngine {
       modeSegments: [...this.modeSegments],
       settingsChanges: [...this.settingsChanges],
       lastPauseReason: this.lastPauseReason,
+      resumeRewindTokens: this.resumeRewindTokens,
     };
   }
 
@@ -198,6 +214,25 @@ export class ReadingEngine {
     }
 
     this.cancelCurrentTimer();
+
+    // Ritmo inteligente: ao retomar uma pausa da sessão, recomeça do início da frase
+    // (contexto) e entra com rampa curta. Seek explícito e retomada após recarga
+    // continuam exatamente no token escolhido/salvo.
+    this.resumeRewindTokens = 0;
+    if (
+      this.punctuationPauseEnabled &&
+      this.lastPauseReason !== null &&
+      REWIND_ON_RESUME_REASONS.has(this.lastPauseReason)
+    ) {
+      const start = findSentenceStartIndex(
+        this.tokens.map((t) => t.boundary),
+        this.tokenIndex,
+      );
+      this.resumeRewindTokens = this.tokenIndex - start;
+      this.tokenIndex = start;
+    }
+    this.rampStep = this.punctuationPauseEnabled ? 0 : RESUME_RAMP_FACTORS.length;
+
     this.status = 'playing';
     this.lastPauseReason = null;
     this.currentSegmentStartActiveMs = this.activeMs;
@@ -361,10 +396,14 @@ export class ReadingEngine {
       return;
     }
 
+    const rampFactor = this.punctuationPauseEnabled
+      ? (RESUME_RAMP_FACTORS[this.rampStep] ?? 1)
+      : 1;
     const durationMs = calculateTokenDurationMs(
-      token.boundary,
+      token,
       this.wpm,
       this.punctuationPauseEnabled,
+      rampFactor,
     );
 
     const expectedGen = ++this.generationId;
@@ -408,6 +447,7 @@ export class ReadingEngine {
     // Exposição concluída normalmente
     this.activeMs += actualElapsedMs;
     this.presentedCount += 1;
+    this.rampStep += 1;
     this.coverageRanges = mergeCoverageRange(this.coverageRanges, [
       this.tokenIndex,
       this.tokenIndex + 1,
