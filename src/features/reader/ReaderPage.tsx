@@ -18,6 +18,7 @@ import {
   Pause,
   Play,
   Plus,
+  Headphones,
   Maximize2,
   Search,
   Rewind,
@@ -68,6 +69,7 @@ import { BookmarksPanel } from '@/features/reader/BookmarksPanel';
 import { ChapterPanel } from '@/features/reader/ChapterPanel';
 import { FocusModeOverlay } from '@/features/reader/FocusModeOverlay';
 import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
+import { ListenBar } from '@/features/reader/ListenBar';
 import { RsvpStage } from '@/features/reader/RsvpStage';
 import { SearchDialog } from '@/features/reader/SearchDialog';
 import { usePdfRenderer } from '@/features/reader/usePdfRenderer';
@@ -92,6 +94,7 @@ import {
   type UserPreferences,
 } from '@/infrastructure/db/repositories';
 import { registerBeforeSwUpdateHandler } from '@/infrastructure/pwa/serviceWorkerManager';
+import { Narrator } from '@/infrastructure/speech/narrator';
 import { toAppError } from '@/shared/errors';
 import { createId, formatDurationPtBr } from '@/shared/utils';
 
@@ -172,6 +175,21 @@ export function ReaderPage() {
 
   const [focusMode, setFocusMode] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Modo "Ouvir": a voz local conduz um cursor próprio; o motor do RSVP fica parado.
+  const [listenOpen, setListenOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [listenIndex, setListenIndex] = useState<number | null>(null);
+  const [listenVoiceId, setListenVoiceId] = useState<string | null>(null);
+  const [listenRate, setListenRate] = useState(1);
+  const [listenError, setListenError] = useState<string | null>(null);
+  const narratorRef = useRef<Narrator | null>(null);
+  const listeningRef = useRef(false);
+  const lastSpokenRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => narratorRef.current?.stop();
+  }, []);
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [bookmarkError, setBookmarkError] = useState<string | null>(null);
   const handleCloseSearch = useCallback(() => setSearchOpen(false), []);
@@ -555,6 +573,15 @@ export function ReaderPage() {
   }, [persistCheckpoint]);
 
   const handleTogglePlayPause = useCallback(async () => {
+    if (listeningRef.current) {
+      narratorRef.current?.stop();
+      listeningRef.current = false;
+      setListening(false);
+      const spoken = lastSpokenRef.current;
+      lastSpokenRef.current = null;
+      if (spoken !== null) engineRef.current?.seek(spoken);
+      return;
+    }
     const engine = engineRef.current;
     const leaseManager = leaseManagerRef.current;
     if (!engine || !bundle || !leaseManager) return;
@@ -700,6 +727,53 @@ export function ReaderPage() {
       );
     }
   };
+
+  /** Para a voz e leva o cursor de leitura à última palavra falada (um único salvamento). */
+  const stopListening = useCallback(() => {
+    narratorRef.current?.stop();
+    listeningRef.current = false;
+    setListening(false);
+    const spoken = lastSpokenRef.current;
+    lastSpokenRef.current = null;
+    if (spoken !== null) void handleSeekTo(spoken);
+  }, [handleSeekTo]);
+
+  const startListening = useCallback(
+    async (fromToken?: number) => {
+      const current = bundleRef.current;
+      const engine = engineRef.current;
+      if (!current || !engine || !listenVoiceId) return;
+      if (engine.getSnapshot().status === 'playing') {
+        engine.pause('manual');
+        await persistCheckpoint(engine.getSnapshot(), 'paused');
+        await leaseManagerRef.current?.releaseLeaseIfOwned();
+      }
+      const start = Math.min(
+        fromToken ?? engine.getSnapshot().cursor.tokenIndex,
+        Math.max(0, current.tokens.length - 1),
+      );
+      narratorRef.current?.stop();
+      const narrator = new Narrator(current.tokens, {
+        onToken: (i) => {
+          lastSpokenRef.current = i;
+          setListenIndex(i);
+        },
+        onEnd: () => stopListening(),
+        onError: (message) => {
+          setListenError(message);
+          stopListening();
+        },
+      });
+      narratorRef.current = narrator;
+      setListenError(null);
+      lastSpokenRef.current = start;
+      setListenIndex(start);
+      listeningRef.current = true;
+      setListening(true);
+      narrator.start(start, listenVoiceId, listenRate);
+    },
+    [listenVoiceId, listenRate, persistCheckpoint, stopListening],
+  );
 
   const handleChunkSizeChange = (size: number) => {
     engineRef.current?.setChunkSize(size);
@@ -1025,7 +1099,23 @@ export function ReaderPage() {
               Buscar
             </Button>
           )}
-          {!isCompleted && !isGuidedMode && (
+          {!isCompleted && (
+            <Button
+              variant={listenOpen ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => {
+                if (listenOpen) stopListening();
+                setListenOpen((v) => !v);
+              }}
+              aria-pressed={listenOpen}
+              data-testid="listen-open-btn"
+              title="Ouvir com voz local"
+            >
+              <Headphones className="h-3.5 w-3.5" aria-hidden="true" />
+              Ouvir
+            </Button>
+          )}
+          {!isCompleted && !isGuidedMode && !listening && (
             <Button
               variant="outline"
               size="sm"
@@ -1207,11 +1297,43 @@ export function ReaderPage() {
         }
       >
       <div className="min-w-0 space-y-5">
+      {listenOpen && !isCompleted && (
+        <ListenBar
+          listening={listening}
+          voiceId={listenVoiceId}
+          rate={listenRate}
+          error={listenError}
+          onVoiceChange={setListenVoiceId}
+          onRateChange={setListenRate}
+          onStart={() => void startListening()}
+          onStop={stopListening}
+          onClose={() => {
+            stopListening();
+            setListenOpen(false);
+          }}
+        />
+      )}
+
       {/* Visor Principal (RSVP ou Leitura Guiada) ou Resumo de Conclusão */}
       {!isCompleted ? (
         <Card className="overflow-hidden">
           <CardContent className="p-6 sm:p-10">
-            {!isGuidedMode ? (
+            {listening ? (
+              <GuidedReadingView
+                normalizedText={bundle.content.normalizedText}
+                blocks={bundle.content.blocks}
+                tokens={bundle.tokens}
+                activeTokenIndex={listenIndex ?? snapshot.cursor.tokenIndex}
+                isPlaying
+                fontSizePx={preferences.guidedFontSizePx}
+                reducedMotion={effectiveReducedMotion}
+                onSelectToken={(tokenIdx) => void startListening(tokenIdx)}
+                onManualScrollPause={stopListening}
+                onChangeFontSize={(sizePx) =>
+                  void handleGuidedFontSizeChange(sizePx)
+                }
+              />
+            ) : !isGuidedMode ? (
               <RsvpStage
                 focalParts={focalParts}
                 displayedText={displayedText}

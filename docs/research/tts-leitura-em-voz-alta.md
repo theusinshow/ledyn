@@ -1,7 +1,7 @@
 # Estudo — Leitura em voz alta (texto → voz) sincronizada com o leitor
 
 - **Data:** 2026-10-23
-- **Status:** estudo; nada implementado.
+- **Status:** estudo concluído; opção A implementada como protótipo em 23/10/2026 (ver ADR-016).
 
 ## Pergunta do usuário
 

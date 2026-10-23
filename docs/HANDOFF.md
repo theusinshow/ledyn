@@ -65,6 +65,11 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 91 OK (inclui migração v1→v2 com base v1 real, restauração de backup v1 e recusa de marcador adulterado); `test:e2e` 32 OK.
 - **Próximo:** modo "Ouvir" (leitura acompanhada por voz), conforme combinado.
 
+## 1.10 Modo "Ouvir" — leitura acompanhada por voz local (protótipo, 2026-10-23)
+- **Implementado:** barra "Ouvir" com vozes locais do sistema (online nunca usadas), fala por frase, destaque da Leitura Guiada conduzido pelos eventos de palavra e cursor sincronizado ao parar (um único seek). O RSVP fica parado durante a fala; ouvir não entra nas métricas. Ver [ADR-016](decisions/ADR-016-listen-mode-local-voices.md).
+- **Verificação real:** lint e typecheck OK; `test:unit` 96 OK; `test:e2e` 34 OK; voz real "Microsoft Daniel" no Chrome/Windows seguindo palavra a palavra.
+- **Pendente:** o usuário avaliar a qualidade das vozes; decidir se voz e velocidade viram preferências salvas; testar no celular.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).
