@@ -60,6 +60,11 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 80 OK; `test:e2e` 30 OK (inclui importação offline).
 - **Próximo:** marcadores e busca no livro; depois o modo "Ouvir".
 
+## 1.9 Marcadores e busca no documento — schema v2 (2026-10-23)
+- **Implementado:** busca no documento (`/`), sem diferenciar acentos e maiúsculas, com trechos e salto até o resultado; marcadores (`M`) com nota, navegação e exportação em Markdown. Banco migrado para o **schema v2** (tabela `bookmarks`, migração aditiva). Backup exporta marcadores e continua restaurando backups v1. Ver [ADR-015](decisions/ADR-015-bookmarks-search-schema-v2.md).
+- **Verificação real:** lint e typecheck OK; `test:unit` 91 OK (inclui migração v1→v2 com base v1 real, restauração de backup v1 e recusa de marcador adulterado); `test:e2e` 32 OK.
+- **Próximo:** modo "Ouvir" (leitura acompanhada por voz), conforme combinado.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

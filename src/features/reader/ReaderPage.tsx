@@ -19,6 +19,7 @@ import {
   Play,
   Plus,
   Maximize2,
+  Search,
   Rewind,
   Undo2,
   RotateCcw,
@@ -37,7 +38,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { ReadingMode } from '@/domain/contracts';
+import type { BookmarkRecord, ReadingMode } from '@/domain/contracts';
 import { BrowserClock } from '@/domain/reading/clock';
 import { buildContextTrail } from '@/domain/reading/contextTrail';
 import { splitPhraseFocalParts } from '@/domain/reading/focalPoint';
@@ -63,10 +64,12 @@ import {
   type PdfOutlineItem,
 } from '@/domain/documents/chapters';
 import { buildPdfPageIndex } from '@/domain/documents/pdfLocator';
+import { BookmarksPanel } from '@/features/reader/BookmarksPanel';
 import { ChapterPanel } from '@/features/reader/ChapterPanel';
 import { FocusModeOverlay } from '@/features/reader/FocusModeOverlay';
 import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
 import { RsvpStage } from '@/features/reader/RsvpStage';
+import { SearchDialog } from '@/features/reader/SearchDialog';
 import { usePdfRenderer } from '@/features/reader/usePdfRenderer';
 import { ReadingLeaseManager } from '@/infrastructure/db/leaseManager';
 
@@ -77,7 +80,11 @@ const PdfScanPanel = lazy(() =>
   })),
 );
 import {
+  addBookmark,
+  deleteBookmark,
+  listBookmarks,
   loadReaderDocumentBundle,
+  updateBookmarkNote,
   saveReadingCheckpoint,
   saveSessionReflection,
   startOrResumeQuizAttempt,
@@ -164,6 +171,65 @@ export function ReaderPage() {
     preferences.reducedMotion || systemReducedMotion;
 
   const [focusMode, setFocusMode] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null);
+  const handleCloseSearch = useCallback(() => setSearchOpen(false), []);
+
+  const loadedDocumentId = bundle?.document.id ?? null;
+  useEffect(() => {
+    if (!loadedDocumentId) return;
+    let cancelled = false;
+    listBookmarks(loadedDocumentId)
+      .then((list) => {
+        if (!cancelled) setBookmarks(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedDocumentId]);
+
+  const handleAddBookmark = useCallback(async () => {
+    const current = bundleRef.current;
+    const engineSnap = engineRef.current?.getSnapshot();
+    if (!current || !engineSnap || current.tokens.length === 0) return;
+    const index = Math.min(engineSnap.cursor.tokenIndex, current.tokens.length - 1);
+    const excerpt = current.tokens
+      .slice(Math.max(0, index - 6), index + 14)
+      .map((t) => t.text)
+      .join(' ');
+    try {
+      await addBookmark({
+        documentId: current.document.id,
+        contentVersionId: current.content.id,
+        tokenIndex: index,
+        excerpt,
+      });
+      setBookmarks(await listBookmarks(current.document.id));
+      setBookmarkError(null);
+    } catch (err) {
+      setBookmarkError(toAppError(err).userMessage);
+    }
+  }, []);
+
+  const handleSaveBookmarkNote = async (id: string, note: string) => {
+    try {
+      await updateBookmarkNote(id, note);
+      setBookmarks((list) => list.map((b) => (b.id === id ? { ...b, note } : b)));
+    } catch (err) {
+      setBookmarkError(toAppError(err).userMessage);
+    }
+  };
+
+  const handleDeleteBookmark = async (id: string) => {
+    try {
+      await deleteBookmark(id);
+      setBookmarks((list) => list.filter((b) => b.id !== id));
+    } catch (err) {
+      setBookmarkError(toAppError(err).userMessage);
+    }
+  };
   const handleExitFocus = useCallback(() => setFocusMode(false), []);
 
   // Ajuste fino do ritmo vale na próxima palavra, sem recriar o motor.
@@ -764,6 +830,12 @@ export function ReaderPage() {
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         void handleSeekBy(10);
+      } else if (e.key === '/') {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        void handleAddBookmark();
       } else if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (engineRef.current?.getSnapshot().mode === 'rsvp') {
@@ -785,7 +857,7 @@ export function ReaderPage() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleTogglePlayPause, handleSeekBy, handleAdjustWpmStep, handleRewind]);
+  }, [handleTogglePlayPause, handleSeekBy, handleAdjustWpmStep, handleRewind, handleAddBookmark]);
 
   if (!documentId) {
     return (
@@ -847,7 +919,7 @@ export function ReaderPage() {
   const showChapters =
     !isCompleted &&
     (bundle.document.format === 'pdf' || bundle.document.format === 'epub');
-  const showSideColumn = showPdfScan || showChapters;
+  const showSideColumn = !isCompleted;
   const currentChapterIndex = findCurrentChapterIndex(
     chapters,
     snapshot.cursor.tokenIndex,
@@ -941,6 +1013,18 @@ export function ReaderPage() {
 
         {/* Alternador de Modo (RSVP / Guiada) + Indicador Honesto de Persistência */}
         <div className="flex flex-wrap items-center gap-3">
+          {!isCompleted && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchOpen(true)}
+              data-testid="search-open-btn"
+              title="Buscar no documento (/)"
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden="true" />
+              Buscar
+            </Button>
+          )}
           {!isCompleted && !isGuidedMode && (
             <Button
               variant="outline"
@@ -1612,6 +1696,9 @@ export function ReaderPage() {
           <p className="text-xs text-muted-foreground pt-1">
             Atalhos de teclado: <kbd className="kbd">Espaço</kbd> iniciar/pausar ·{' '}
             <kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> -10/+10 palavras ·{' '}
+            <kbd className="kbd">M</kbd> marcar ·{' '}
+            <kbd className="kbd">/</kbd> buscar ·{' '}
+            <kbd className="kbd">F</kbd> foco ·{' '}
             <kbd className="kbd">R</kbd> voltar frase ·{' '}
             <kbd className="kbd">Shift</kbd>+<kbd className="kbd">R</kbd> voltar parágrafo ·{' '}
             <kbd className="kbd">-</kbd>/<kbd className="kbd">+</kbd> ajustar 25 PPM ·{' '}
@@ -1631,6 +1718,21 @@ export function ReaderPage() {
               emptyMessage={chapterEmptyMessage}
               onSelectChapter={(tokenIdx) => void handleSeekTo(tokenIdx)}
             />
+          )}
+          <BookmarksPanel
+            bookmarks={bookmarks}
+            tokenCount={bundle.tokens.length}
+            activeTokenIndex={snapshot.cursor.tokenIndex}
+            documentTitle={bundle.document.title}
+            onAdd={() => void handleAddBookmark()}
+            onSelect={(tokenIdx) => void handleSeekTo(tokenIdx)}
+            onSaveNote={(id, note) => void handleSaveBookmarkNote(id, note)}
+            onDelete={(id) => void handleDeleteBookmark(id)}
+          />
+          {bookmarkError && (
+            <p role="alert" className="text-xs text-destructive">
+              {bookmarkError}
+            </p>
           )}
           {showPdfScan && (
           <Suspense
@@ -1653,6 +1755,18 @@ export function ReaderPage() {
         </aside>
       )}
       </div>
+
+      {searchOpen && (
+        <SearchDialog
+          normalizedText={bundle.content.normalizedText}
+          tokens={bundle.tokens}
+          onClose={handleCloseSearch}
+          onSelect={(tokenIdx) => {
+            setSearchOpen(false);
+            void handleSeekTo(tokenIdx);
+          }}
+        />
+      )}
 
       {focusMode && !isGuidedMode && !isCompleted && (
         <FocusModeOverlay

@@ -98,6 +98,7 @@ IDs UUID gerados localmente; timestamps ISO UTC para registros, exibidos no fuso
 | `reflections` | id, sessionId, text, updatedAt | `id`, `sessionId`; sem nota automática. |
 | `settings` | key, value, schemaVersion | `key`; validar por esquema e limites. |
 | `leases` | key, ownerId, expiresAt, revision | `key`; exclusão mútua de sessão e operações de manutenção. |
+| `bookmarks` (schema v2) | id, documentId, contentVersionId, tokenIndex, excerpt, note, createdAt, updatedAt | `id`, `documentId`, `[documentId+tokenIndex]`, `createdAt`; removidos junto com o documento; incluídos no backup a partir do v2 (ADR-015). |
 
 `leases` é operacional: não exportar nem restaurar locks ativos. Seeds de treino têm IDs e versões estáveis; atualização não sobrescreve snapshots usados por tentativas existentes. `reviewStatus` diferencia material produzido pelo agente e material conferido pelo usuário, sem fingir uma revisão que não ocorreu.
 
@@ -140,7 +141,7 @@ Esses tipos são contratos ilustrativos, não uma implementação pronta. Âncor
 - Checkpoint grava sessão e progresso na mesma transação. Contadores são totais do snapshot com revisão crescente, não incrementos reaplicados a cada retry.
 - Não gravar por palavra. Manter o motor em memória e persistir no máximo a cada 2 s, mais transições explícitas.
 - Deletar documento remove relacionamentos na mesma transação. Treinos podem ser reinstalados pelo catálogo, mas apagar um treino também remove suas tentativas após confirmação.
-- Migrações Dexie são explícitas e testadas com fixture de versão anterior. Nunca usar `deleteDatabase` como solução automática.
+- Migrações Dexie são explícitas e testadas com fixture de versão anterior. Nunca usar `deleteDatabase` como solução automática. Histórico: v1 (MVP); v2 (23/10/2026) adiciona `bookmarks`, migração aditiva sem `upgrade()` (ADR-015). A restauração aceita backups de schema v1 e v2.
 - Se versão do banco for superior à suportada, abrir estado de incompatibilidade sem escrever ou apagar. Oferecer retorno à versão compatível, sem fingir backup novo se a base não puder ser lida com segurança.
 
 ### 4.3 Duas abas e concorrência

@@ -172,6 +172,19 @@ export type ReflectionRecord = {
   updatedAt: string;
 };
 
+/** Marcador pessoal num ponto do conteúdo versionado, com nota opcional (schema v2). */
+export type BookmarkRecord = {
+  id: string;
+  documentId: string;
+  contentVersionId: string;
+  tokenIndex: number;
+  /** Trecho do texto normalizado ao redor do marcador, guardado no momento da criação. */
+  excerpt: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SettingKey =
   | 'theme'
   | 'defaultWpm'

@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type {
+  BookmarkRecord,
   ContentRecord,
   DocumentRecord,
   LeaseRecord,
@@ -15,7 +16,7 @@ import type {
 import { AppError } from '@/shared/errors';
 
 export const DB_NAME = 'ledyn-local-db';
-export const DB_SCHEMA_VERSION = 1;
+export const DB_SCHEMA_VERSION = 2;
 
 export class LedynDatabase extends Dexie {
   documents!: Table<DocumentRecord, string>;
@@ -28,6 +29,7 @@ export class LedynDatabase extends Dexie {
   quizAttempts!: Table<QuizAttemptRecord, string>;
   reflections!: Table<ReflectionRecord, string>;
   settings!: Table<SettingRecord, string>;
+  bookmarks!: Table<BookmarkRecord, string>;
   leases!: Table<LeaseRecord, string>;
 
   constructor(name: string = DB_NAME) {
@@ -45,6 +47,12 @@ export class LedynDatabase extends Dexie {
       reflections: 'id, sessionId, updatedAt',
       settings: 'key',
       leases: 'key, ownerId, expiresAt',
+    });
+
+    // v2 (23/10/2026): marcadores pessoais. Migração aditiva: só cria a tabela nova,
+    // sem tocar nos dados existentes (ADR-015).
+    this.version(2).stores({
+      bookmarks: 'id, documentId, [documentId+tokenIndex], createdAt',
     });
   }
 }

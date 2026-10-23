@@ -2,6 +2,7 @@ import { strFromU8, strToU8, Unzip, UnzipInflate, UnzipPassThrough, zipSync } fr
 import { z } from 'zod';
 import { verifyQuestionSetIntegrity } from '@/domain/comprehension/quiz';
 import type {
+  BookmarkRecord,
   ContentRecord,
   DocumentRecord,
   ProgressRecord,
@@ -27,6 +28,11 @@ import { AppError, toAppError } from '@/shared/errors';
 import { computeSha256Hex } from '@/shared/utils';
 
 export const BACKUP_FORMAT_VERSION = 1;
+/**
+ * Versões de schema de banco aceitas na restauração. v1 não tinha marcadores;
+ * restaurar um backup v1 resulta em zero marcadores (ADR-015).
+ */
+export const SUPPORTED_BACKUP_DB_SCHEMA_VERSIONS: readonly number[] = [1, 2];
 export const BACKUP_APP_VERSION = '0.1.0';
 
 export const MAX_BACKUP_COMPRESSED_BYTES = 150 * 1024 * 1024; // 150 MiB
@@ -66,6 +72,8 @@ export interface BackupManifest {
     quizAttempts: number;
     reflections: number;
     settings: number;
+    /** Presente a partir do schema v2. */
+    bookmarks?: number;
   };
   files: BackupManifestFileEntry[];
 }
@@ -287,6 +295,7 @@ export async function hasPersonalDataInLibrary(
   const sessionsCount = await database.sessions.count();
   const quizAttemptsCount = await database.quizAttempts.count();
   const reflectionsCount = await database.reflections.count();
+  const bookmarksCount = await database.bookmarks.count();
 
   const allProgress = await database.progress.toArray();
   const hasPracticedProgress = allProgress.some(
@@ -298,6 +307,7 @@ export async function hasPersonalDataInLibrary(
     sessionsCount > 0 ||
     quizAttemptsCount > 0 ||
     reflectionsCount > 0 ||
+    bookmarksCount > 0 ||
     hasPracticedProgress;
 
   return {
@@ -330,6 +340,7 @@ export async function clearAllPersonalDataTransactional(
         database.questionSets,
         database.quizAttempts,
         database.reflections,
+        database.bookmarks,
         database.leases,
       ],
       async () => {
@@ -341,6 +352,7 @@ export async function clearAllPersonalDataTransactional(
           );
         }
 
+        await database.bookmarks.clear();
         await database.quizAttempts.clear();
         await database.reflections.clear();
         await database.sessions.clear();
@@ -384,6 +396,7 @@ const BackupManifestSchema = z.object({
     quizAttempts: z.number().int().nonnegative(),
     reflections: z.number().int().nonnegative(),
     settings: z.number().int().nonnegative(),
+    bookmarks: z.number().int().nonnegative().optional(),
   }),
   files: z.array(ManifestFileEntrySchema),
 });
@@ -565,6 +578,17 @@ const QuizAttemptRecordSchema = z.object({
   repeated: z.boolean(),
 });
 
+const BookmarkRecordSchema = z.object({
+  id: z.string().min(1),
+  documentId: z.string().min(1),
+  contentVersionId: z.string().min(1),
+  tokenIndex: z.number().int().nonnegative(),
+  excerpt: z.string().max(280),
+  note: z.string().max(2_000),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+});
+
 const ReflectionRecordSchema = z.object({
   id: z.string().min(1),
   sessionId: z.string().min(1),
@@ -628,6 +652,7 @@ export async function exportFullBackupZip(options?: {
     quizAttempts,
     reflections,
     settings,
+    bookmarks,
   ] = await database.transaction(
     'r',
     [
@@ -641,6 +666,7 @@ export async function exportFullBackupZip(options?: {
       database.quizAttempts,
       database.reflections,
       database.settings,
+      database.bookmarks,
     ],
     async () => {
       return Promise.all([
@@ -654,6 +680,7 @@ export async function exportFullBackupZip(options?: {
         database.quizAttempts.toArray(),
         database.reflections.toArray(),
         database.settings.toArray(),
+        database.bookmarks.toArray(),
       ]);
     },
   );
@@ -720,6 +747,7 @@ export async function exportFullBackupZip(options?: {
     ['data/quiz-attempts.json', quizAttempts],
     ['data/reflections.json', reflections],
     ['data/settings.json', settings],
+    ['data/bookmarks.json', bookmarks],
   ];
 
   for (const [path, data] of jsonPayloads) {
@@ -755,6 +783,7 @@ export async function exportFullBackupZip(options?: {
       quizAttempts: quizAttempts.length,
       reflections: reflections.length,
       settings: settings.length,
+      bookmarks: bookmarks.length,
     },
     files: manifestFiles,
   };
@@ -860,7 +889,7 @@ export async function restoreFullBackupZip(
       typeof nv === 'number' &&
       typeof tv === 'number' &&
       (fv !== BACKUP_FORMAT_VERSION ||
-        dbv !== DB_SCHEMA_VERSION ||
+        !SUPPORTED_BACKUP_DB_SCHEMA_VERSIONS.includes(dbv) ||
         nv !== NORMALIZATION_VERSION ||
         tv !== TOKENIZER_VERSION)
     ) {
@@ -990,6 +1019,11 @@ export async function restoreFullBackupZip(
     'data/settings.json',
     z.array(SettingRecordSchema),
   ) as SettingRecord[];
+  // Backups de schema v1 não têm marcadores; a partir do v2 o arquivo é obrigatório.
+  const bookmarks: BookmarkRecord[] =
+    manifest.dbSchemaVersion >= 2
+      ? (parseJsonEntry('data/bookmarks.json', z.array(BookmarkRecordSchema)) as BookmarkRecord[])
+      : [];
 
   const questionSets: QuestionSetRecord[] = rawQuestionSets.map((qs) => ({
     ...qs,
@@ -1015,7 +1049,8 @@ export async function restoreFullBackupZip(
     questionSets.length !== manifest.counts.questionSets ||
     quizAttempts.length !== manifest.counts.quizAttempts ||
     reflections.length !== manifest.counts.reflections ||
-    settings.length !== manifest.counts.settings
+    settings.length !== manifest.counts.settings ||
+    bookmarks.length !== (manifest.counts.bookmarks ?? 0)
   ) {
     throw new AppError(
       'BACKUP_INVALID',
@@ -1269,6 +1304,25 @@ export async function restoreFullBackupZip(
     }
   }
 
+  const bookmarkIds = new Set<string>();
+  for (const bm of bookmarks) {
+    const doc = docById.get(bm.documentId);
+    const content = contentById.get(bm.contentVersionId);
+    if (
+      bookmarkIds.has(bm.id) ||
+      !doc ||
+      !content ||
+      content.documentId !== bm.documentId ||
+      bm.tokenIndex >= content.tokenCount
+    ) {
+      throw new AppError(
+        'BACKUP_INVALID',
+        `Marcador ${bm.id} duplicado ou apontando para documento/conteúdo/posição inexistente.`,
+      );
+    }
+    bookmarkIds.add(bm.id);
+  }
+
   // 5. Commit transacional atômico em todas as stores duráveis (com rollback em caso de falha)
   try {
     await database.transaction(
@@ -1284,6 +1338,7 @@ export async function restoreFullBackupZip(
         database.quizAttempts,
         database.reflections,
         database.settings,
+        database.bookmarks,
         database.leases,
       ],
       async () => {
@@ -1306,6 +1361,7 @@ export async function restoreFullBackupZip(
         }
 
         // Remove seeds de treino padrão e settings para substituir pelo estado exato do backup
+        await database.bookmarks.clear();
         await database.quizAttempts.clear();
         await database.reflections.clear();
         await database.sessions.clear();
@@ -1347,6 +1403,9 @@ export async function restoreFullBackupZip(
         }
         if (settings.length > 0) {
           await database.settings.bulkAdd(settings);
+        }
+        if (bookmarks.length > 0) {
+          await database.bookmarks.bulkAdd(bookmarks);
         }
 
         if (options?.faultInjectionHook) {

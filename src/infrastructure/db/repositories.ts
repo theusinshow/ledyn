@@ -7,7 +7,9 @@ import {
   evaluateQuizAttempt,
   verifyQuestionSetIntegrity,
 } from '@/domain/comprehension/quiz';
+import Dexie from 'dexie';
 import type {
+  BookmarkRecord,
   ContentBlock,
   ContentRecord,
   DocumentFormat,
@@ -382,8 +384,10 @@ export async function deleteDocumentTransactional(
         database.questionSets,
         database.quizAttempts,
         database.reflections,
+        database.bookmarks,
       ],
       async () => {
+        await database.bookmarks.where('documentId').equals(documentId).delete();
         const contents = await database.contents
           .where('documentId')
           .equals(documentId)
@@ -425,6 +429,87 @@ export async function deleteDocumentTransactional(
         await database.documents.delete(documentId);
       },
     );
+  } catch (error) {
+    throw toAppError(error, 'STORAGE_UNAVAILABLE');
+  }
+}
+
+export const MAX_BOOKMARK_NOTE_LENGTH = 2_000;
+
+/** Marcadores do documento, na ordem do texto. */
+export async function listBookmarks(
+  documentId: string,
+  database: LedynDatabase = db,
+): Promise<BookmarkRecord[]> {
+  try {
+    return await database.bookmarks
+      .where('[documentId+tokenIndex]')
+      .between([documentId, Dexie.minKey], [documentId, Dexie.maxKey])
+      .toArray();
+  } catch (error) {
+    throw toAppError(error, 'STORAGE_UNAVAILABLE');
+  }
+}
+
+/** Cria um marcador no token informado; se já houver um no mesmo token, devolve o existente. */
+export async function addBookmark(
+  input: {
+    documentId: string;
+    contentVersionId: string;
+    tokenIndex: number;
+    excerpt: string;
+  },
+  database: LedynDatabase = db,
+  nowIso: string = new Date().toISOString(),
+): Promise<BookmarkRecord> {
+  try {
+    return await database.transaction('rw', [database.bookmarks, database.documents], async () => {
+      const doc = await database.documents.get(input.documentId);
+      if (!doc || doc.contentVersionId !== input.contentVersionId) {
+        throw new AppError('DOCUMENT_NOT_FOUND');
+      }
+      const tokenIndex = Math.max(0, Math.min(doc.tokenCount - 1, Math.trunc(input.tokenIndex)));
+      const existing = await database.bookmarks
+        .where('[documentId+tokenIndex]')
+        .equals([input.documentId, tokenIndex])
+        .first();
+      if (existing) return existing;
+      const record: BookmarkRecord = {
+        id: createId(),
+        documentId: input.documentId,
+        contentVersionId: input.contentVersionId,
+        tokenIndex,
+        excerpt: input.excerpt.slice(0, 280),
+        note: '',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      await database.bookmarks.add(record);
+      return record;
+    });
+  } catch (error) {
+    throw toAppError(error, 'STORAGE_UNAVAILABLE');
+  }
+}
+
+export async function updateBookmarkNote(
+  id: string,
+  note: string,
+  database: LedynDatabase = db,
+  nowIso: string = new Date().toISOString(),
+): Promise<void> {
+  try {
+    const trimmed = note.slice(0, MAX_BOOKMARK_NOTE_LENGTH);
+    const updated = await database.bookmarks.update(id, { note: trimmed, updatedAt: nowIso });
+    if (updated === 0) throw new AppError('DOCUMENT_NOT_FOUND', 'Marcador não encontrado.');
+  } catch (error) {
+    throw toAppError(error, 'STORAGE_UNAVAILABLE');
+  }
+}
+
+export async function deleteBookmark(id: string, database: LedynDatabase = db): Promise<void> {
+  try {
+    await database.bookmarks.delete(id);
   } catch (error) {
     throw toAppError(error, 'STORAGE_UNAVAILABLE');
   }
