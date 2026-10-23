@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
@@ -44,6 +44,13 @@ import {
 } from '@/domain/reading/metrics';
 import { GuidedReadingView } from '@/features/reader/GuidedReadingView';
 import { ReadingLeaseManager } from '@/infrastructure/db/leaseManager';
+
+// Carregado sob demanda: mantém PDF.js fora do bundle inicial do leitor.
+const PdfScanPanel = lazy(() =>
+  import('@/features/reader/PdfScanPanel').then((m) => ({
+    default: m.PdfScanPanel,
+  })),
+);
 import {
   loadReaderDocumentBundle,
   saveReadingCheckpoint,
@@ -740,6 +747,7 @@ export function ReaderPage() {
   const isPlaying = snapshot.status === 'playing';
   const isCompleted = snapshot.status === 'completed';
   const isGuidedMode = snapshot.mode === 'guided';
+  const showPdfScan = bundle.document.format === 'pdf' && !isCompleted;
   const progressPercent = calculateProgressPercent(
     snapshot.cursor.tokenIndex,
     snapshot.tokenCount,
@@ -925,7 +933,7 @@ export function ReaderPage() {
         <div
           role="status"
           data-testid="visibility-paused-banner"
-          className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+          className="flex items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
         >
           <span>
             Leitura pausada enquanto você estava fora. Clique em Iniciar para retomar.
@@ -954,7 +962,7 @@ export function ReaderPage() {
         <div
           role="status"
           data-testid="manual-scroll-paused-banner"
-          className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+          className="flex items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
         >
           <span>
             Leitura pausada por rolagem manual. Use &ldquo;Voltar ao ponto de leitura&rdquo; ou clique em uma palavra para continuar.
@@ -969,40 +977,56 @@ export function ReaderPage() {
         </div>
       )}
 
+      <div
+        className={
+          showPdfScan
+            ? 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start'
+            : undefined
+        }
+      >
+      <div className="min-w-0 space-y-5">
       {/* Visor Principal (RSVP ou Leitura Guiada) ou Resumo de Conclusão */}
       {!isCompleted ? (
         <Card className="overflow-hidden">
           <CardContent className="p-6 sm:p-10">
             {!isGuidedMode ? (
-              <div className="flex flex-col items-center justify-center min-h-[200px] sm:min-h-[240px] rounded-xl border border-border bg-muted/20 px-4 py-6 relative select-none">
+              <div className="relative flex min-h-[220px] select-none flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-sunken px-4 py-8 sm:min-h-[260px]">
                 <div
-                  className="h-3 w-0.5 bg-primary/40 mb-3"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-transparent via-border-strong to-transparent"
+                />
+                <div
+                  className="relative h-4 w-px bg-primary/70 mb-4"
                   aria-hidden="true"
                 />
 
                 <div
                   data-testid="rsvp-word-display"
-                  className={`w-full text-center font-mono font-semibold tracking-wide break-words leading-tight ${
+                  className={`relative w-full text-center font-medium tracking-[-0.025em] break-words leading-tight ${
                     isLongWord
-                      ? 'text-2xl sm:text-3xl'
-                      : 'text-3xl sm:text-5xl'
+                      ? 'text-3xl sm:text-4xl'
+                      : 'text-4xl sm:text-6xl'
                   }`}
                 >
                   <span>{focalParts.prefix}</span>
-                  <span className="text-primary underline decoration-primary/60 underline-offset-4">
+                  <span className="text-primary [text-shadow:0_0_24px_color-mix(in_srgb,var(--primary)_45%,transparent)]">
                     {focalParts.pivot}
                   </span>
                   <span>{focalParts.suffix}</span>
                 </div>
 
                 <div
-                  className="h-3 w-0.5 bg-primary/40 mt-3"
+                  className="relative h-4 w-px bg-primary/70 mt-4"
                   aria-hidden="true"
                 />
 
                 {!isPlaying && (
                   <p
-                    className="mt-4 text-xs text-muted-foreground text-center max-w-md line-clamp-2"
+                    className="relative mt-5 text-xs text-muted-foreground text-center max-w-md line-clamp-2"
                     data-testid="rsvp-paused-context"
                   >
                     {prevContextTokens && <span>...{prevContextTokens} </span>}
@@ -1071,7 +1095,7 @@ export function ReaderPage() {
               </div>
 
               <div className="w-full max-w-xl space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
                   <span data-testid="rsvp-cursor-position">
                     Palavra {snapshot.cursor.tokenIndex + 1} de{' '}
                     {snapshot.tokenCount}
@@ -1094,7 +1118,7 @@ export function ReaderPage() {
                     Math.max(0, snapshot.tokenCount - 1),
                   )}
                   onChange={(e) => void handleSeekTo(Number(e.target.value))}
-                  className="w-full accent-primary cursor-pointer h-2 rounded-lg"
+                  className="w-full cursor-pointer h-1.5 rounded-full"
                 />
               </div>
             </div>
@@ -1117,7 +1141,7 @@ export function ReaderPage() {
               <div
                 role="status"
                 data-testid="partial-coverage-notice"
-                className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs"
+                className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs"
               >
                 <strong>Sessão parcial por cobertura:</strong> parte do texto foi saltada manualmente ({uniqueCovered} de {snapshot.tokenCount} palavras únicas apresentadas).
               </div>
@@ -1203,7 +1227,7 @@ export function ReaderPage() {
                   )}
                 </div>
                 {bundle.hasPriorPractice && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     Você já leu este texto anteriormente; a familiaridade pode influenciar o resultado.
                   </p>
                 )}
@@ -1430,13 +1454,36 @@ export function ReaderPage() {
           </div>
 
           <p className="text-xs text-muted-foreground pt-1">
-            Atalhos de teclado: <kbd className="rounded border px-1">Espaço</kbd> iniciar/pausar ·{' '}
-            <kbd className="rounded border px-1">←</kbd>/<kbd className="rounded border px-1">→</kbd> -10/+10 palavras ·{' '}
-            <kbd className="rounded border px-1">-</kbd>/<kbd className="rounded border px-1">+</kbd> ajustar 25 PPM ·{' '}
-            <kbd className="rounded border px-1">Esc</kbd> pausar.
+            Atalhos de teclado: <kbd className="kbd">Espaço</kbd> iniciar/pausar ·{' '}
+            <kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> -10/+10 palavras ·{' '}
+            <kbd className="kbd">-</kbd>/<kbd className="kbd">+</kbd> ajustar 25 PPM ·{' '}
+            <kbd className="kbd">Esc</kbd> pausar.
           </p>
         </CardContent>
       </Card>
+      </div>
+
+      {showPdfScan && (
+        <aside className="lg:sticky lg:top-6">
+          <Suspense
+            fallback={
+              <div className="aspect-[1/1.3] animate-pulse rounded-xl border border-border bg-card" />
+            }
+          >
+            <PdfScanPanel
+              key={bundle.document.id}
+              documentId={bundle.document.id}
+              tokens={bundle.tokens}
+              blocks={bundle.content.blocks}
+              activeTokenIndex={snapshot.cursor.tokenIndex}
+              isPlaying={isPlaying}
+              reducedMotion={effectiveReducedMotion}
+              onSeekToToken={(tokenIdx) => void handleSeekTo(tokenIdx)}
+            />
+          </Suspense>
+        </aside>
+      )}
+      </div>
     </div>
   );
 }

@@ -125,6 +125,43 @@ export function createFx04ThreePagePdfBytes(): Uint8Array {
 }
 
 /**
+ * FX-04i: PDF textual de 2 páginas com uma imagem raster (bloco vermelho) na página 1.
+ * A imagem é inline e codificada em ASCIIHex para manter o arquivo 100% ASCII.
+ */
+export function createFx04iPdfWithImageBytes(): Uint8Array {
+  const redPixels = Array.from({ length: 4 }, () => 'FF0000').join(' ');
+  return createMultiPagePdfBytes([
+    `BT /F1 12 Tf 72 720 Td (Figura um mostra o bloco vermelho abaixo) Tj ET q 240 0 0 160 72 480 cm BI /W 2 /H 2 /CS /RGB /BPC 8 /F /AHx ID ${redPixels}> EI Q`,
+    'BT /F1 12 Tf 72 720 Td (Pagina final sem figura alguma) Tj ET',
+  ]);
+}
+
+/**
+ * FX-04L: livro textual longo (padrão 600 páginas, ~300 palavras por página em 30 linhas).
+ * Gerado de forma determinística para medir importação e leitura de PDFs grandes.
+ */
+export function createFx04LongBookPdfBytes(pageCount = 600): Uint8Array {
+  const vocabulary = [
+    'leitura', 'ritmo', 'atencao', 'texto', 'pagina', 'capitulo', 'ideia', 'memoria',
+    'foco', 'palavra', 'linha', 'sentido', 'pratica', 'olhar', 'tempo', 'estudo',
+  ];
+  const streams: string[] = [];
+  for (let p = 0; p < pageCount; p++) {
+    const lines: string[] = [];
+    for (let l = 0; l < 30; l++) {
+      const words: string[] = [];
+      for (let w = 0; w < 10; w++) {
+        words.push(vocabulary[(p * 7 + l * 3 + w) % vocabulary.length]!);
+      }
+      const text = l === 0 ? `Pagina ${p + 1} ${words.join(' ')}` : words.join(' ');
+      lines.push(`BT /F1 10 Tf 72 ${740 - l * 22} Td (${text}.) Tj ET`);
+    }
+    streams.push(lines.join(' '));
+  }
+  return createMultiPagePdfBytes(streams);
+}
+
+/**
  * FX-05a: PDF escaneado / sem camada de texto (2 páginas em branco sem operadores de texto).
  */
 export function createFx05ScannedEmptyPdfBytes(): Uint8Array {

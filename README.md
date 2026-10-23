@@ -59,7 +59,7 @@ Acesse no navegador: **`http://localhost:4173`**
 ## 4. Guia de Uso do MVP
 
 ### 4.1 Biblioteca e Importação Segura (4 formatos)
-- Em **Biblioteca** (`/library`), adicione materiais por **Colar texto** ou **Importar arquivo** (`.txt` UTF-8, `.pdf` textual até 300 páginas ou `.epub` reflowable sem DRM, até `40 MiB` e `200.000` palavras).
+- Em **Biblioteca** (`/library`), adicione materiais por **Colar texto** ou **Importar arquivo** (`.txt` UTF-8, `.pdf` textual até 1.000 páginas ou `.epub` reflowable sem DRM, até `40 MiB` e `500.000` palavras).
 - Toda entrada passa por **Prévia antes de salvar**, exibindo contagem de palavras, blocos/capítulos/páginas e avisos de extração (páginas PDF sem texto, múltiplas colunas/tabelas ou duplicata por hash SHA-256).
 - Você pode buscar por título, renomear, cancelar importações em andamento ou excluir documentos de forma transacional.
 

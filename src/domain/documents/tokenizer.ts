@@ -2,7 +2,7 @@ import type { ContentBlock, Token, TokenBoundary, TokenChunkRecord } from '@/dom
 import { AppError } from '@/shared/errors';
 
 export const TOKENIZER_VERSION = 1;
-export const MAX_TOKEN_COUNT = 200_000;
+export const MAX_TOKEN_COUNT = 500_000;
 export const TOKEN_CHUNK_SIZE = 2_000;
 
 /**

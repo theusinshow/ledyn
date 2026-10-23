@@ -73,7 +73,7 @@ Suportar texto colado, `.txt` UTF-8, `.pdf` textual e `.epub` reflowable sem DRM
 
 **Aceite:** um arquivo válido de cada tipo chega à prévia, conserva acentos e parágrafos razoavelmente, é confirmado e pode ser reaberto offline. Cancelar, exceder limite, falhar ou faltar espaço não deixa documento incompleto. Arquivo idêntico oferece abrir o existente; não duplica silenciosamente.
 
-Limites propostos: arquivo de até **40 MiB**, PDF de até **300 páginas**, texto normalizado de até **1.000.000 de unidades UTF-16 e 200.000 tokens**, EPUB de até **2.000 entradas e 100 MiB de saída descompactada acumulada**. Encerrar ao atingir o primeiro limite. Extração com mais de 60 segundos requer cancelamento por timeout e mensagem; não interpretar isso como garantia de processamento em 60 segundos. Limites de backup são próprios, definidos na arquitetura.
+Limites propostos: arquivo de até **40 MiB**, PDF de até **1.000 páginas**, texto normalizado de até **3.000.000 de unidades UTF-16 e 500.000 tokens** (ampliados em 23/10/2026, ADR-008), EPUB de até **2.000 entradas e 100 MiB de saída descompactada acumulada**. Encerrar ao atingir o primeiro limite. Extração com mais de 180 segundos requer cancelamento por timeout e mensagem; não interpretar isso como garantia de processamento em 180 segundos. Limites de backup são próprios, definidos na arquitetura.
 
 PDF escaneado sem texto não é aceito como importação bem-sucedida. PDF com senha, arquivos corrompidos, EPUB com DRM, EPUB de layout fixo e arquivos fora dos limites apresentam explicação e alternativa. PDF em colunas ou com tabelas recebe aviso de ordem potencialmente incorreta e exige prévia. Sem reconstrução editorial nem OCR no MVP.
 

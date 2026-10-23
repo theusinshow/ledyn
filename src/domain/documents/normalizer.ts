@@ -2,7 +2,7 @@ import type { ContentBlock, ImportIssue } from '@/domain/contracts';
 import { AppError } from '@/shared/errors';
 
 export const NORMALIZATION_VERSION = 1;
-export const MAX_NORMALIZED_UTF16_LENGTH = 1_000_000;
+export const MAX_NORMALIZED_UTF16_LENGTH = 3_000_000;
 
 export interface NormalizationResult {
   normalizationVersion: number;

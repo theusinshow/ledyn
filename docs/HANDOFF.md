@@ -15,6 +15,18 @@
   3. Aceite pessoal de uso real pelo usuário (`AC-35`).
 - **Fases pós-MVP (F7 Tauri Desktop e F8 Capacitor Mobile):** **Não iniciadas** (aguardam conclusão do aceite pessoal `AC-35` e autorização explícita do usuário).
 
+## 1.1 Ciclo pós-G6 — Redesign e Mapa do PDF (2026-10-23)
+- **Pedido do usuário:** refazer o design system com referência no Linear e adicionar ao leitor um mapa/scan da página do PDF, com imagens e o trecho em leitura.
+- **Implementado:** novos tokens e primitivas (`src/index.css`, `src/components/ui/*`), shell com barra lateral (`src/app/App.tsx`), palco RSVP refeito e o painel **Mapa do PDF** (`PdfScanPanel.tsx`, `pdfLocator.ts`, `pdfPageRenderer.ts`, `loadSourceFileBlob`). Decisões em [ADR-007](decisions/ADR-007-design-system-linear-and-pdf-scan-map.md).
+- **Verificação real:** `lint` OK; `typecheck` OK; `test:unit` 10 arquivos / 47 testes OK; `test:e2e` 18 testes OK (inclui os 3 novos de `reader-pdf-scan.spec.ts`), no Chrome sobre o build de produção. Capturas revisadas nos temas claro e escuro, em 1366×860 e 390×844.
+- **Pendente:** aceite visual do usuário; validação em aparelho físico. O destaque do mapa é aproximado por bloco e linha, não por palavra.
+
+## 1.2 Livros PDF longos e capas na biblioteca (2026-10-23)
+- **Pedido do usuário:** importar um PDF de 600 páginas e usar a capa de cada documento como referência na biblioteca.
+- **Implementado:** limites ampliados (1.000 páginas, 3.000.000 de unidades UTF-16, 500.000 tokens, timeout de 180 s; 40 MiB mantidos). Capa da 1ª página do PDF gerada sob demanda (`pdfCoverService.ts`, `DocumentCover.tsx`) e capa tipográfica nos demais formatos. Sem mudança de schema. Ver [ADR-008](decisions/ADR-008-long-pdf-limits-and-library-covers.md).
+- **Verificação real:** lint, typecheck, `test:unit` com 47 testes e `test:e2e` com 19 testes, todos OK. Inclui `pdf-long-book.spec.ts`: PDF sintético de 600 páginas / 181.200 tokens, importado e aberto em ~1,2 s no Chrome desktop.
+- **Pendente:** importar o livro real do usuário (se passar de 40 MiB, será recusado pelo limite atual) e validar memória/tempo no celular.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

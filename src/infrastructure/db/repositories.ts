@@ -427,6 +427,22 @@ export async function deleteDocumentTransactional(
 }
 
 /**
+ * Lê o arquivo original preservado (somente leitura) para exibição local,
+ * como o mapa de páginas do PDF. Retorna `null` se o original não existir.
+ */
+export async function loadSourceFileBlob(
+  documentId: string,
+  database: LedynDatabase = db,
+): Promise<Blob | null> {
+  try {
+    const record = await database.sourceFiles.get(documentId);
+    return record?.blob ?? null;
+  } catch (error) {
+    throw toAppError(error, 'STORAGE_UNAVAILABLE');
+  }
+}
+
+/**
  * Carrega documento, conteúdo versionado, tokens em chunks, progresso e sessão retomável.
  * Se houver uma sessão deixada como `playing` sem lease ativo de outra aba (ex.: aba fechada ou recarregada),
  * marca-a como `interrupted` no último checkpoint persistido e sempre retorna pronto para iniciar PAUSADO.

@@ -5,10 +5,10 @@ import type {
 } from '@/domain/contracts';
 
 export const MAX_IMPORT_FILE_BYTES = 40 * 1024 * 1024; // 40 MiB (40 * 1024^2)
-export const MAX_PDF_PAGES = 300;
+export const MAX_PDF_PAGES = 1_000;
 export const MAX_EPUB_ENTRIES = 2_000;
 export const MAX_EPUB_UNCOMPRESSED_BYTES = 100 * 1024 * 1024; // 100 MiB
-export const IMPORT_TIMEOUT_MS = 60_000; // 60 s
+export const IMPORT_TIMEOUT_MS = 180_000; // 180 s (livros longos de até 1.000 páginas)
 
 export interface PreviewSection {
   id: string;

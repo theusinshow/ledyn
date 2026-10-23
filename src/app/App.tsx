@@ -103,16 +103,16 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       {swUpdateAvailable && (
         <div
           role="status"
           data-testid="pwa-update-banner"
-          className="border-b border-primary/40 bg-primary/10 px-4 py-2.5 text-xs"
+          className="sticky top-0 z-30 border-b border-primary/25 bg-primary/10 px-4 py-2 text-xs backdrop-blur-md"
         >
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2">
-            <span>
-              <strong>Nova versão offline pronta:</strong> nenhuma recarga automática será feita durante a leitura. Quando desejar atualizar, sua posição atual será salva primeiro.
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2">
+            <span className="text-foreground/90">
+              <strong className="font-semibold">Nova versão offline pronta:</strong> nenhuma recarga automática será feita durante a leitura. Quando desejar atualizar, sua posição atual será salva primeiro.
             </span>
             <Button
               type="button"
@@ -127,19 +127,27 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-      {!isReaderRoute && (
-        <header className="border-b border-border bg-card/60 backdrop-blur-xs sticky top-0 z-10">
-          <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+
+      <div className="flex min-h-screen">
+        {!isReaderRoute && (
+          <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-border bg-card/40 px-3 py-4 backdrop-blur-sm sm:flex">
             <Link
               to="/library"
-              className="font-bold text-base tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              className="mb-6 flex items-center gap-2.5 rounded-md px-2 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Leitura Dinâmica Pessoal
+              <BrandMark />
+              <span className="flex flex-col leading-none">
+                <span className="text-[13px] font-semibold tracking-[-0.01em]">
+                  Ledyn
+                </span>
+                <span className="mt-1 text-[11px] text-subtle-foreground">
+                  Leitura Dinâmica Pessoal
+                </span>
+              </span>
             </Link>
-            <nav
-              aria-label="Navegação principal"
-              className="hidden sm:flex items-center gap-1"
-            >
+
+            <p className="eyebrow mb-2 px-2">Espaço de leitura</p>
+            <nav aria-label="Navegação principal" className="flex flex-col gap-0.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = location.pathname.startsWith(item.to);
@@ -147,32 +155,62 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.to}
                     to={item.to}
+                    aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'inline-flex min-h-10 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'group relative flex min-h-9 items-center gap-2.5 rounded-md px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       active
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                        ? 'bg-accent text-foreground'
+                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                     )}
                   >
-                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <Icon
+                      className={cn(
+                        'h-4 w-4',
+                        active ? 'text-primary' : 'text-subtle-foreground group-hover:text-muted-foreground',
+                      )}
+                      aria-hidden="true"
+                    />
                     {item.label}
                   </Link>
                 );
               })}
             </nav>
-          </div>
-        </header>
-      )}
 
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 pb-24 sm:pb-10">
-        {children}
-      </main>
+            <div className="mt-auto rounded-lg border border-border bg-surface-sunken/60 p-3">
+              <p className="eyebrow mb-1">Local-first</p>
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                Tudo fica neste navegador. Sem conta, sem rede.
+              </p>
+            </div>
+          </aside>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          {!isReaderRoute && (
+            <header className="sticky top-0 z-10 flex items-center gap-2.5 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md sm:hidden">
+              <BrandMark />
+              <Link to="/library" className="text-[13px] font-semibold">
+                Ledyn
+              </Link>
+            </header>
+          )}
+
+          <main
+            className={cn(
+              'mx-auto w-full flex-1 px-4 py-6 pb-24 animate-fade-up sm:px-8 sm:py-10 sm:pb-12',
+              isReaderRoute ? 'max-w-6xl' : 'max-w-4xl',
+            )}
+          >
+            {children}
+          </main>
+        </div>
+      </div>
 
       {/* Barra inferior responsiva para celular */}
       {!isReaderRoute && (
         <nav
           aria-label="Navegação móvel"
-          className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-card sm:hidden"
+          className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-card/90 backdrop-blur-md sm:hidden"
         >
           <div className="grid grid-cols-4">
             {navItems.map((item) => {
@@ -182,11 +220,10 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex min-h-14 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    active
-                      ? 'text-primary font-semibold'
-                      : 'text-muted-foreground',
+                    'flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    active ? 'text-primary' : 'text-muted-foreground',
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
@@ -198,6 +235,22 @@ function NavigationShell({ children }: { children: React.ReactNode }) {
         </nav>
       )}
     </div>
+  );
+}
+
+/** Marca: três barras em fade — palavra em foco saindo da linha de leitura. */
+function BrandMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-b from-primary to-primary/70 shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]"
+    >
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-primary-foreground">
+        <rect x="2" y="7" width="3" height="2" rx="1" fill="currentColor" opacity="0.45" />
+        <rect x="6.5" y="4.5" width="3" height="7" rx="1.5" fill="currentColor" />
+        <rect x="11" y="7" width="3" height="2" rx="1" fill="currentColor" opacity="0.45" />
+      </svg>
+    </span>
   );
 }
 

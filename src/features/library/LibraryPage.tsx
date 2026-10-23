@@ -43,6 +43,7 @@ import {
   isImportJobCancelled,
   prepareFileImportDraft,
 } from '@/infrastructure/importers/pipeline';
+import { DocumentCover } from '@/features/library/DocumentCover';
 import { toAppError } from '@/shared/errors';
 import { formatDateTimePtBr } from '@/shared/utils';
 
@@ -340,6 +341,9 @@ export function LibraryPage() {
   const handleConfirmDelete = async (docId: string) => {
     try {
       await deleteDocumentTransactional(docId);
+      void import('@/infrastructure/pdf/pdfCoverService').then((m) =>
+        m.releasePdfCover(docId),
+      );
       setDeletingId(null);
       await refreshLibrary(searchQuery);
     } catch (err) {
@@ -607,7 +611,7 @@ export function LibraryPage() {
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground">
-                          Limites: até 40 MiB, 300 páginas PDF, 200.000 palavras. Sem OCR ou remoção de DRM.
+                          Limites: até 40 MiB, 1.000 páginas PDF, 500.000 palavras. Sem OCR ou remoção de DRM.
                         </p>
                       </div>
                     </div>
@@ -668,7 +672,7 @@ export function LibraryPage() {
                   <div
                     role="status"
                     data-testid="duplicate-document-notice"
-                    className="flex flex-col gap-3 rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 rounded-md border border-warning/30 bg-warning/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
                       <p className="font-semibold">
@@ -770,7 +774,7 @@ export function LibraryPage() {
                   <div
                     role="status"
                     data-testid="preview-warnings-box"
-                    className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1"
+                    className="rounded-md border border-warning/30 bg-warning/10 p-3 text-xs space-y-1"
                   >
                     <p className="font-semibold">Avisos da extração:</p>
                     <ul className="list-disc pl-4">
@@ -1055,8 +1059,15 @@ export function LibraryPage() {
                     data-testid={`library-item-${doc.id}`}
                     className="transition-colors hover:border-primary/40"
                   >
-                    <CardContent className="p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <CardContent className="p-4 sm:p-5">
+                      <div className="flex gap-4">
+                      <DocumentCover
+                        documentId={doc.id}
+                        title={doc.title}
+                        format={doc.format}
+                        progressPercent={progressPercent}
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-2 flex-1 min-w-0">
                           {renamingId === doc.id ? (
                             <div className="flex items-center gap-2 max-w-md">
@@ -1158,6 +1169,7 @@ export function LibraryPage() {
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
+                      </div>
                       </div>
 
                       {/* Confirmação de remoção transacional */}

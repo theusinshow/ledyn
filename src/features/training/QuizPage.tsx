@@ -248,9 +248,9 @@ export function QuizPage() {
         <div
           role="status"
           data-testid="quiz-repeated-notice"
-          className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+          className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
         >
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>
             <strong>Texto já praticado:</strong> você já leu este texto anteriormente; a familiaridade pode influenciar o resultado.
           </span>
