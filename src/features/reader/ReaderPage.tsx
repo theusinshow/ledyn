@@ -1050,9 +1050,9 @@ export function ReaderPage() {
 
   return (
     <div className="space-y-5" data-testid="reader-page">
-      {/* Barra Superior do Leitor */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      {/* Barra Superior do Leitor: título e estado na 1ª linha; modo e ferramentas na 2ª */}
+      <div className="space-y-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -1065,68 +1065,49 @@ export function ReaderPage() {
               await navigate('/library');
             }}
             data-testid="reader-exit-library-btn"
+            aria-label="Voltar à biblioteca"
+            className="shrink-0"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Biblioteca
+            <span className="hidden sm:inline">Biblioteca</span>
           </Button>
-          <h1
-            className="font-semibold text-base sm:text-lg truncate"
-            data-testid="reader-document-title"
-          >
-            {bundle.document.title}
-          </h1>
-          {currentChapter && (
-            <span
-              className="hidden truncate text-[0.8125rem] text-muted-foreground md:inline"
-              data-testid="reader-current-chapter"
+          <div className="min-w-0 flex-1">
+            <h1
+              className="truncate text-base font-semibold sm:text-lg"
+              data-testid="reader-document-title"
             >
-              <span className="text-subtle-foreground">/</span> {currentChapter.title}
-            </span>
-          )}
+              {bundle.document.title}
+            </h1>
+            {currentChapter && (
+              <p
+                className="truncate text-[0.75rem] text-muted-foreground"
+                data-testid="reader-current-chapter"
+              >
+                {currentChapter.title}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-xs">
+            {saveState === 'saving' && (
+              <Badge variant="outline" data-testid="checkpoint-status-saving">
+                Salvando progresso...
+              </Badge>
+            )}
+            {saveState === 'saved' && !saveErrorMessage && (
+              <Badge variant="secondary" data-testid="checkpoint-status-saved">
+                Ponto salvo
+              </Badge>
+            )}
+            {saveState === 'error' && (
+              <Badge variant="destructive" data-testid="checkpoint-status-error">
+                Avanço não salvo
+              </Badge>
+            )}
+          </div>
         </div>
 
-        {/* Alternador de Modo (RSVP / Guiada) + Indicador Honesto de Persistência */}
-        <div className="flex flex-wrap items-center gap-3">
-          {!isCompleted && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSearchOpen(true)}
-              data-testid="search-open-btn"
-              title="Buscar no documento (/)"
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden="true" />
-              Buscar
-            </Button>
-          )}
-          {!isCompleted && (
-            <Button
-              variant={listenOpen ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => {
-                if (listenOpen) stopListening();
-                setListenOpen((v) => !v);
-              }}
-              aria-pressed={listenOpen}
-              data-testid="listen-open-btn"
-              title="Ouvir com voz local"
-            >
-              <Headphones className="h-3.5 w-3.5" aria-hidden="true" />
-              Ouvir
-            </Button>
-          )}
-          {!isCompleted && !isGuidedMode && !listening && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFocusMode(true)}
-              data-testid="focus-mode-btn"
-              title="Modo foco em tela cheia (F)"
-            >
-              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Foco
-            </Button>
-          )}
+        {!isCompleted && (
+        <div className="flex items-center justify-between gap-2">
           {!isCompleted && (
             <div
               role="group"
@@ -1164,25 +1145,53 @@ export function ReaderPage() {
               </button>
             </div>
           )}
-
-          <div className="flex items-center gap-2 text-xs">
-            {saveState === 'saving' && (
-              <Badge variant="outline" data-testid="checkpoint-status-saving">
-                Salvando progresso...
-              </Badge>
-            )}
-            {saveState === 'saved' && !saveErrorMessage && (
-              <Badge variant="secondary" data-testid="checkpoint-status-saved">
-                Ponto salvo
-              </Badge>
-            )}
-            {saveState === 'error' && (
-              <Badge variant="destructive" data-testid="checkpoint-status-error">
-                Avanço não salvo
-              </Badge>
-            )}
+          <div className="flex items-center gap-2">
+          {!isCompleted && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchOpen(true)}
+              title="Buscar no documento (/)"
+              data-testid="search-open-btn"
+              aria-label="Buscar"
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Buscar</span>
+            </Button>
+          )}
+          {!isCompleted && (
+            <Button
+              variant={listenOpen ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => {
+                if (listenOpen) stopListening();
+                setListenOpen((v) => !v);
+              }}
+              aria-pressed={listenOpen}
+              title="Ouvir com voz local"
+              data-testid="listen-open-btn"
+              aria-label="Ouvir"
+            >
+              <Headphones className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Ouvir</span>
+            </Button>
+          )}
+          {!isCompleted && !isGuidedMode && !listening && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFocusMode(true)}
+              title="Modo foco em tela cheia (F)"
+              data-testid="focus-mode-btn"
+              aria-label="Foco"
+            >
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Foco</span>
+            </Button>
+          )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Alertas de Conflito entre Abas, Falha de Gravação, Visibilidade e Retomada */}
@@ -1317,7 +1326,7 @@ export function ReaderPage() {
       {/* Visor Principal (RSVP ou Leitura Guiada) ou Resumo de Conclusão */}
       {!isCompleted ? (
         <Card className="overflow-hidden">
-          <CardContent className="p-6 sm:p-10">
+          <CardContent className="p-4 sm:p-10">
             {listening ? (
               <GuidedReadingView
                 normalizedText={bundle.content.normalizedText}
@@ -1363,7 +1372,8 @@ export function ReaderPage() {
             )}
 
             <div className="mt-6 flex flex-col items-center gap-4">
-              <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                <div className="order-2 flex w-full justify-center gap-2 sm:order-none sm:w-auto">
                 <Button
                   variant="ghost"
                   onClick={() => handleRewind('paragraph')}
@@ -1384,6 +1394,7 @@ export function ReaderPage() {
                   <Undo2 className="h-4 w-4" aria-hidden="true" />
                   Frase
                 </Button>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => void handleSeekBy(-10)}
@@ -1398,7 +1409,7 @@ export function ReaderPage() {
                   size="lg"
                   onClick={() => void handleTogglePlayPause()}
                   data-testid="rsvp-play-pause-btn"
-                  className="min-w-[9.375rem]"
+                  className="min-w-[7.5rem] sm:min-w-[9.375rem]"
                 >
                   {isPlaying ? (
                     <>
@@ -1815,7 +1826,7 @@ export function ReaderPage() {
             </Button>
           </div>
 
-          <p className="text-xs text-muted-foreground pt-1">
+          <p className="hidden pt-1 text-xs text-muted-foreground md:block">
             Atalhos de teclado: <kbd className="kbd">Espaço</kbd> iniciar/pausar ·{' '}
             <kbd className="kbd">←</kbd>/<kbd className="kbd">→</kbd> -10/+10 palavras ·{' '}
             <kbd className="kbd">M</kbd> marcar ·{' '}
@@ -1831,7 +1842,7 @@ export function ReaderPage() {
       </div>
 
       {showSideColumn && (
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+        <aside className="grid gap-4 sm:grid-cols-2 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:space-y-4 lg:overflow-y-auto">
           {showChapters && (
             <ChapterPanel
               chapters={chapters}

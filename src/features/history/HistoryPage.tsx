@@ -110,13 +110,13 @@ export function HistoryPage() {
       {/* Filtros por documento e presença de quiz (UX-FLOWS.md Fluxo G / AC-23) */}
       {entries.length > 0 && (
         <div
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4 text-xs"
+          className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-xs sm:flex-row sm:flex-wrap sm:items-center"
           data-testid="history-filters-bar"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <label
               htmlFor="history-filter-document"
-              className="font-medium text-muted-foreground"
+              className="w-24 shrink-0 font-medium text-muted-foreground sm:w-auto"
             >
               Documento:
             </label>
@@ -125,7 +125,7 @@ export function HistoryPage() {
               data-testid="history-filter-document"
               value={selectedDocumentId}
               onChange={(e) => setSelectedDocumentId(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              className="h-9 min-w-0 flex-1 truncate rounded-md border border-input bg-background px-2.5 text-xs sm:max-w-xs sm:flex-none"
             >
               <option value="all">Todos os documentos</option>
               {documentOptions.map((doc) => (
@@ -136,10 +136,10 @@ export function HistoryPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <label
               htmlFor="history-filter-quiz"
-              className="font-medium text-muted-foreground"
+              className="w-24 shrink-0 font-medium text-muted-foreground sm:w-auto"
             >
               Questionário:
             </label>
@@ -148,7 +148,7 @@ export function HistoryPage() {
               data-testid="history-filter-quiz"
               value={quizFilter}
               onChange={(e) => setQuizFilter(e.target.value as QuizFilterMode)}
-              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs"
+              className="h-9 min-w-0 flex-1 truncate rounded-md border border-input bg-background px-2.5 text-xs sm:max-w-xs sm:flex-none"
             >
               <option value="all">Todas as sessões</option>
               <option value="with_quiz">Com questionário enviado</option>
@@ -223,7 +223,7 @@ export function HistoryPage() {
                 >
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <CardTitle className="text-base">
+                      <CardTitle className="min-w-0 break-words text-base">
                         {documentTitle}
                       </CardTitle>
                       <div className="flex flex-wrap items-center gap-2">
@@ -348,7 +348,7 @@ export function HistoryPage() {
                         size="sm"
                         onClick={() => toggleExpanded(session.id)}
                         data-testid={`history-toggle-details-${session.id}`}
-                        className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        className="h-auto min-h-8 whitespace-normal px-2 text-left text-xs text-muted-foreground hover:text-foreground"
                       >
                         {isExpanded ? (
                           <>

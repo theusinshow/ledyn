@@ -70,6 +70,16 @@
 - **Verificação real:** lint e typecheck OK; `test:unit` 96 OK; `test:e2e` 34 OK; voz real "Microsoft Daniel" no Chrome/Windows seguindo palavra a palavra.
 - **Pendente:** o usuário avaliar a qualidade das vozes; decidir se voz e velocidade viram preferências salvas; testar no celular.
 
+## 1.11 Revisão de telas e responsividade (2026-10-23)
+- **Varredura:** todas as telas com dados reais em 360, 768 e 1366 px, nos temas claro e escuro.
+- **Defeito encontrado e corrigido:** no Histórico, o filtro "Documento" (título longo) e o botão "Ver detalhes" sem quebra de linha forçavam 570 px no celular. Como o conteúdo era mais largo que a tela, o navegador reduzia o zoom da página inteira.
+- **Ajustes:**
+  - Leitor: cabeçalho em 2 linhas (ferramentas só com ícone no celular); −10/Iniciar/+10 numa linha; atalhos de teclado ocultos em telas sem teclado; coluna lateral em 2 colunas no tablet.
+  - Biblioteca: cartões compactos; prévia de importação com ações empilhadas e sem a tela de "vazio" por baixo.
+  - Configurações: ajuste fino legível no celular.
+- **Guarda nova:** `tests/e2e/responsive-layout.spec.ts` percorre todas as telas em 360 e 768 px e falha se algum elemento ultrapassar a largura da tela.
+- **Verificação real:** lint e typecheck OK; `test:unit` 96 OK; `test:e2e` 36 OK.
+
 ## 2. Estado do workspace / commit / alterações
 - **Diretório raiz:** `C:\Dev\pessoal\projetos\ledyn\ledyn`
 - **Branch Git:** `main` (último commit base antes de F3–F6: `330b919 feat(f0-f2): implement core speed reading engine, library, and file importers`).

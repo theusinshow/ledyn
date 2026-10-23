@@ -883,7 +883,7 @@ export function LibraryPage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-wrap justify-between gap-2">
+              <CardFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-between">
                 <Button
                   type="button"
                   variant="ghost"
@@ -895,7 +895,7 @@ export function LibraryPage() {
                     ? 'Editar texto'
                     : 'Escolher outro arquivo'}
                 </Button>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:flex-wrap [&>button]:w-full sm:[&>button]:w-auto">
                   <Button
                     type="button"
                     variant="outline"
@@ -978,6 +978,7 @@ export function LibraryPage() {
           Carregando biblioteca local...
         </div>
       ) : items.length === 0 ? (
+        isPanelVisible && searchQuery.trim().length === 0 ? null : (
         <Card data-testid="library-empty-state">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center space-y-4">
             <div className="rounded-full bg-muted p-3">
@@ -1036,6 +1037,7 @@ export function LibraryPage() {
             )}
           </CardContent>
         </Card>
+        )
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -1067,7 +1069,7 @@ export function LibraryPage() {
                         format={doc.format}
                         progressPercent={progressPercent}
                       />
-                      <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                         <div className="space-y-2 flex-1 min-w-0">
                           {renamingId === doc.id ? (
                             <div className="flex items-center gap-2 max-w-md">
@@ -1105,7 +1107,7 @@ export function LibraryPage() {
                           ) : (
                             <div className="flex items-center gap-2 flex-wrap">
                               <h2
-                                className="font-semibold text-base break-words"
+                                className="line-clamp-2 break-words text-base font-semibold"
                                 data-testid={`library-item-title-${doc.id}`}
                               >
                                 {doc.title}
@@ -1138,7 +1140,7 @@ export function LibraryPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <div className="flex shrink-0 items-center gap-2 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
                           <Button
                             onClick={() => void navigate(`/reader/${doc.id}`)}
                             data-testid={`open-reader-btn-${doc.id}`}

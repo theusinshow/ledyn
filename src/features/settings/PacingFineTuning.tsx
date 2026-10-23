@@ -90,9 +90,9 @@ export function PacingFineTuning({ preferences, onSave }: PacingFineTuningProps)
             <div className="flex items-baseline justify-between gap-3">
               <label htmlFor={id} className="text-[0.8125rem]">
                 {label}
-                <span className="ml-2 text-[0.6875rem] text-subtle-foreground">{hint}</span>
+                <span className="block text-[0.6875rem] text-subtle-foreground sm:ml-2 sm:inline">{hint}</span>
               </label>
-              <output htmlFor={id} className="font-mono text-xs tabular-nums text-muted-foreground" data-testid={`${id}-value`}>
+              <output htmlFor={id} className="shrink-0 whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground" data-testid={`${id}-value`}>
                 {valueOf(key)} ms
               </output>
             </div>

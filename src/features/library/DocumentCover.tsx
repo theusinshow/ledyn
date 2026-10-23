@@ -79,7 +79,7 @@ export function DocumentCover({
       data-testid={`library-item-cover-${documentId}`}
       data-cover-state={coverUrl ? 'image' : 'placeholder'}
       className={cn(
-        'relative aspect-[3/4] w-16 shrink-0 overflow-hidden rounded-md bg-surface-sunken shadow-[0_1px_0_rgb(255_255_255/0.06)_inset,0_6px_16px_-8px_rgb(0_0_0/0.5)] ring-1 ring-border-strong sm:w-[4.5rem]',
+        'relative aspect-[3/4] w-12 self-start shrink-0 sm:w-16 overflow-hidden rounded-md bg-surface-sunken shadow-[0_1px_0_rgb(255_255_255/0.06)_inset,0_6px_16px_-8px_rgb(0_0_0/0.5)] ring-1 ring-border-strong lg:w-[4.5rem]',
         className,
       )}
     >
